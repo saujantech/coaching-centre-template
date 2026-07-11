@@ -1,0 +1,63 @@
+<link rel="stylesheet" href="style.css" />
+<main class="page">
+  <header class="hero">
+    <img id="logo" class="logo" alt="" />
+    <h1 id="centre-name"></h1>
+    <p id="tagline" class="tagline"></p>
+  </header>
+
+  <section class="card">
+    <h2>Book a Free Trial Class</h2>
+    <form id="booking-form" novalidate>
+      <label>
+        Child's name
+        <input type="text" name="child_name" required />
+      </label>
+
+      <label>
+        Year level
+        <select name="year_level" id="year-level" required></select>
+      </label>
+
+      <label>
+        Subject
+        <select name="subject" id="subject" required></select>
+      </label>
+
+      <label>
+        Preferred time
+        <input type="text" name="preferred_time" placeholder="e.g. Saturday mornings" />
+      </label>
+
+      <label>
+        Your name
+        <input type="text" name="parent_name" required />
+      </label>
+
+      <label>
+        Phone
+        <input type="tel" name="parent_phone" />
+      </label>
+
+      <label>
+        Email
+        <input type="email" name="parent_email" required />
+      </label>
+
+      <label>
+        Anything else we should know?
+        <textarea name="message" rows="3"></textarea>
+      </label>
+
+      <button type="submit" id="submit-btn">Request a Trial</button>
+      <p id="form-status" role="status"></p>
+    </form>
+  </section>
+
+  <footer class="footer">
+    <p id="contact-line"></p>
+  </footer>
+</main>
+
+<script src="/centre.config.js"></script>
+<script src="booking.js"></script>

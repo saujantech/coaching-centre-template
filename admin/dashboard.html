@@ -1,0 +1,50 @@
+<link rel="stylesheet" href="admin.css" />
+<main class="dashboard">
+  <div class="dash-header">
+    <h1 id="centre-name"></h1>
+    <button id="logout-btn" class="secondary">Log out</button>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="bookings">Trial Bookings</button>
+    <button class="tab-btn" data-tab="students">Students</button>
+  </nav>
+
+  <section id="tab-bookings" class="tab-panel active">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Child</th>
+          <th>Subject</th>
+          <th>Parent</th>
+          <th>Preferred time</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="bookings-body"></tbody>
+    </table>
+  </section>
+
+  <section id="tab-students" class="tab-panel">
+    <table>
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Year</th>
+          <th>Parent</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="students-body"></tbody>
+    </table>
+
+    <div id="student-detail" class="student-detail hidden"></div>
+  </section>
+</main>
+
+<script src="/centre.config.js"></script>
+<script src="admin.js"></script>
+<script>initDashboard();</script>

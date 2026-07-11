@@ -1,0 +1,25 @@
+<link rel="stylesheet" href="admin.css" />
+<main class="login-page">
+  <div class="login-card">
+    <img id="logo" class="logo" alt="" />
+    <h1 id="centre-name"></h1>
+    <p class="subtitle">Owner login</p>
+
+    <form id="login-form" novalidate>
+      <label>
+        Email
+        <input type="email" name="email" required autocomplete="username" />
+      </label>
+      <label>
+        Password
+        <input type="password" name="password" required autocomplete="current-password" />
+      </label>
+      <button type="submit" id="login-btn">Log in</button>
+      <p id="login-status" role="status"></p>
+    </form>
+  </div>
+</main>
+
+<script src="/centre.config.js"></script>
+<script src="admin.js"></script>
+<script>initLoginPage();</script>

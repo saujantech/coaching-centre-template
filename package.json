@@ -1,0 +1,9 @@
+{
+  "name": "coaching-centre-os",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reusable booking + fee-reminder template for small tutoring/coaching centres.",
+  "engines": {
+    "node": ">=18"
+  }
+}
