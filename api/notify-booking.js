@@ -5,7 +5,7 @@
 // data — it only means the owner has to check the dashboard instead.
 
 const { sendEmail } = require("./_email");
-const centreConfig = require("../centre.config");
+const centreConfig = require("../public/centre.config");
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
@@ -23,7 +23,7 @@ module.exports = async (req, res) => {
   const html = `
     <h2>New trial booking — ${centreConfig.centreName}</h2>
     <p><strong>Child:</strong> ${escapeHtml(child_name)} (${escapeHtml(year_level)})</p>
-    <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
+    <p><strong>Subject:</strong> ${escapeHtml((subject || []).join(", "))}</p>
     <p><strong>Preferred time:</strong> ${escapeHtml(preferred_time || "Not specified")}</p>
     <p><strong>Parent:</strong> ${escapeHtml(parent_name)}</p>
     <p><strong>Phone:</strong> ${escapeHtml(parent_phone || "Not provided")}</p>

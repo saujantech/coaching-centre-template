@@ -1,0 +1,16 @@
+<link rel="stylesheet" href="style.css" />
+<main class="page">
+  <header class="hero">
+    <h1 id="centre-name"></h1>
+    <p class="tagline">Terms &amp; Conditions</p>
+  </header>
+  <section class="card">
+    <p>Content coming soon.</p>
+  </section>
+</main>
+
+<script src="/centre.config.js"></script>
+<script>
+  document.getElementById("centre-name").textContent = window.CENTRE_CONFIG.centreName;
+  document.title = `Terms & Conditions — ${window.CENTRE_CONFIG.centreName}`;
+</script>

@@ -11,6 +11,10 @@
   box-sizing: border-box;
 }
 
+.hidden {
+  display: none;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -85,6 +89,36 @@ select:focus,
 textarea:focus {
   outline: 2px solid var(--brand);
   outline-offset: 1px;
+}
+
+fieldset {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin: 0;
+}
+
+legend {
+  font-size: 0.9rem;
+  padding: 0 0.25rem;
+}
+
+.checkbox-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.checkbox-list label,
+.checkbox-row {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-weight: normal;
+}
+
+.checkbox-row a {
+  color: var(--brand);
 }
 
 button {

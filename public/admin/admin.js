@@ -27,7 +27,32 @@ function clearSession() {
   localStorage.removeItem(SESSION_KEY);
 }
 
-async function supabaseTable(path, options = {}) {
+function isExpiredJwtError(status, text) {
+  return status === 401 && /jwt expired/i.test(text);
+}
+
+async function refreshSession() {
+  const cfg = window.CENTRE_CONFIG;
+  const session = getSession();
+  if (!session || !session.refresh_token) return false;
+
+  const res = await fetch(`${cfg.supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: {
+      apikey: cfg.supabaseAnonKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ refresh_token: session.refresh_token }),
+  });
+
+  if (!res.ok) return false;
+
+  const body = await res.json();
+  setSession(body);
+  return true;
+}
+
+async function supabaseTable(path, options = {}, isRetry = false) {
   const cfg = window.CENTRE_CONFIG;
   const res = await fetch(`${cfg.supabaseUrl}/rest/v1/${path}`, {
     ...options,
@@ -37,9 +62,22 @@ async function supabaseTable(path, options = {}) {
       ...options.headers,
     },
   });
-  if (!res.ok) throw new Error(await res.text());
-  if (res.status === 204) return null;
-  return res.json();
+  const text = await res.text();
+
+  if (!res.ok) {
+    if (!isRetry && isExpiredJwtError(res.status, text)) {
+      const refreshed = await refreshSession();
+      if (refreshed) return supabaseTable(path, options, true);
+
+      clearSession();
+      alert("Your session expired, please log in again.");
+      window.location.href = "/admin/index.html";
+      return new Promise(() => {}); // stop further execution while we navigate away
+    }
+    throw new Error(text);
+  }
+
+  return text ? JSON.parse(text) : null;
 }
 
 // ---------------------------------------------------------------
@@ -50,12 +88,13 @@ function initLoginPage() {
   document.title = `Admin login — ${cfg.centreName}`;
   document.getElementById("centre-name").textContent = cfg.centreName;
   const logo = document.getElementById("logo");
+  logo.addEventListener("error", () => logo.classList.add("hidden"));
   logo.src = cfg.logoUrl;
   logo.alt = cfg.centreName;
   document.documentElement.style.setProperty("--brand", cfg.brandColor);
 
   if (getSession()) {
-    window.location.href = "dashboard.html";
+    window.location.href = "/admin/dashboard.html";
     return;
   }
 
@@ -85,7 +124,7 @@ function initLoginPage() {
       if (!res.ok) throw new Error(body.error_description || body.msg || "Login failed");
 
       setSession(body);
-      window.location.href = "dashboard.html";
+      window.location.href = "/admin/dashboard.html";
     } catch (err) {
       status.textContent = err.message;
       status.className = "status-msg error";
@@ -104,13 +143,13 @@ async function initDashboard() {
   document.documentElement.style.setProperty("--brand", cfg.brandColor);
 
   if (!getSession()) {
-    window.location.href = "index.html";
+    window.location.href = "/admin/index.html";
     return;
   }
 
   document.getElementById("logout-btn").addEventListener("click", () => {
     clearSession();
-    window.location.href = "index.html";
+    window.location.href = "/admin/index.html";
   });
 
   document.querySelectorAll(".tab-btn").forEach((btn) => {
@@ -143,7 +182,7 @@ async function loadBookings() {
       <tr data-id="${b.id}">
         <td>${new Date(b.created_at).toLocaleDateString()}</td>
         <td>${escapeHtml(b.child_name)} (${escapeHtml(b.year_level)})</td>
-        <td>${escapeHtml(b.subject)}</td>
+        <td>${escapeHtml((b.subject || []).join(", "))}</td>
         <td>${escapeHtml(b.parent_name)}<br/><small>${escapeHtml(b.parent_phone || "")} ${escapeHtml(b.parent_email || "")}</small></td>
         <td>${escapeHtml(b.preferred_time || "-")}</td>
         <td><span class="badge ${b.status}">${b.status}</span></td>

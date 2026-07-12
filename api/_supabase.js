@@ -1,7 +1,9 @@
 // Shared helper for server-side Supabase REST calls using the service_role
 // key. Never import this from anything that ships to the browser.
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
+const centreConfig = require("../public/centre.config");
+
+const SUPABASE_URL = centreConfig.supabaseUrl;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 async function supabaseRequest(path, options = {}) {
@@ -16,13 +18,12 @@ async function supabaseRequest(path, options = {}) {
     },
   });
 
+  const text = await res.text();
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Supabase ${options.method || "GET"} ${path} failed: ${res.status} ${body}`);
+    throw new Error(`Supabase ${options.method || "GET"} ${path} failed: ${res.status} ${text}`);
   }
 
-  if (res.status === 204) return null;
-  return res.json();
+  return text ? JSON.parse(text) : null;
 }
 
 module.exports = { supabaseRequest };

@@ -5,7 +5,7 @@
 
 const { supabaseRequest } = require("./_supabase");
 const { sendEmail } = require("./_email");
-const centreConfig = require("../centre.config");
+const centreConfig = require("../public/centre.config");
 
 module.exports = async (req, res) => {
   // Vercel Cron sends a GET request with this header — reject anything else

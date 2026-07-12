@@ -8,6 +8,7 @@
     `Questions? Call ${cfg.contactPhone} or email ${cfg.contactEmail}`;
 
   const logo = document.getElementById("logo");
+  logo.addEventListener("error", () => logo.classList.add("hidden"));
   logo.src = cfg.logoUrl;
   logo.alt = cfg.centreName;
 
@@ -21,12 +22,12 @@
     yearSelect.appendChild(opt);
   });
 
-  const subjectSelect = document.getElementById("subject");
-  cfg.subjects.forEach((subject) => {
-    const opt = document.createElement("option");
-    opt.value = subject;
-    opt.textContent = subject;
-    subjectSelect.appendChild(opt);
+  const subjectOptions = document.getElementById("subject-options");
+  cfg.subjects.forEach((subject, i) => {
+    const id = `subject-${i}`;
+    const label = document.createElement("label");
+    label.innerHTML = `<input type="checkbox" name="subject" value="${subject}" id="${id}" /> <span>${subject}</span>`;
+    subjectOptions.appendChild(label);
   });
 
   const form = document.getElementById("booking-form");
@@ -41,6 +42,17 @@
 
     const formData = new FormData(form);
     const payload = Object.fromEntries(formData.entries());
+    delete payload.consent;
+
+    payload.subject = formData.getAll("subject");
+
+    const preferredDate = formData.get("preferred_date");
+    const preferredTime = formData.get("preferred_time");
+    payload.preferred_time =
+      preferredDate && preferredTime
+        ? `${preferredDate} ${preferredTime}`
+        : preferredDate || preferredTime || null;
+    delete payload.preferred_date;
 
     try {
       const res = await fetch(`${cfg.supabaseUrl}/rest/v1/trial_bookings`, {

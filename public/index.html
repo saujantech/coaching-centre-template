@@ -19,14 +19,19 @@
         <select name="year_level" id="year-level" required></select>
       </label>
 
+      <fieldset id="subject-fieldset">
+        <legend>Subject(s)</legend>
+        <div id="subject-options" class="checkbox-list"></div>
+      </fieldset>
+
       <label>
-        Subject
-        <select name="subject" id="subject" required></select>
+        Preferred date
+        <input type="date" name="preferred_date" />
       </label>
 
       <label>
         Preferred time
-        <input type="text" name="preferred_time" placeholder="e.g. Saturday mornings" />
+        <input type="time" name="preferred_time" />
       </label>
 
       <label>
@@ -36,7 +41,14 @@
 
       <label>
         Phone
-        <input type="tel" name="parent_phone" />
+        <input
+          type="tel"
+          name="parent_phone"
+          inputmode="numeric"
+          pattern="0[0-9]{9}"
+          placeholder="0412 345 678"
+          required
+        />
       </label>
 
       <label>
@@ -47,6 +59,15 @@
       <label>
         Anything else we should know?
         <textarea name="message" rows="3"></textarea>
+      </label>
+
+      <label class="checkbox-row">
+        <input type="checkbox" name="consent" required />
+        <span>
+          I agree to the <a href="/terms.html" target="_blank">Terms &amp; Conditions</a>
+          and <a href="/privacy.html" target="_blank">Privacy Policy</a>, and consent to
+          this information being used to contact me about this booking.
+        </span>
       </label>
 
       <button type="submit" id="submit-btn">Request a Trial</button>
