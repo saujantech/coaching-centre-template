@@ -18,6 +18,7 @@
     <button class="tab-btn" data-tab="classes">Classes</button>
     <button class="tab-btn" data-tab="teachers">Teachers</button>
     <button class="tab-btn" data-tab="bookings">Trial Bookings</button>
+    <button class="tab-btn" data-tab="templates">Email Templates</button>
   </nav>
 
   <!-- Mobile-only bottom tab bar (see @media (max-width: 640px) in
@@ -42,6 +43,10 @@
     <button class="tab-btn bottom-tab-btn" data-tab="bookings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 9.5h16M8 3v3.5M16 3v3.5" /></svg>
       <span>Bookings</span>
+    </button>
+    <button class="tab-btn bottom-tab-btn" data-tab="templates">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 6.5 8 6 8-6" /></svg>
+      <span>Templates</span>
     </button>
   </nav>
 
@@ -148,6 +153,27 @@
             </tr>
           </thead>
           <tbody id="bookings-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-templates" class="tab-panel">
+    <div class="section-toolbar">
+      <h2>Email Templates</h2>
+      <button id="add-template-btn">Add Template</button>
+    </div>
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Subject</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="templates-body"></tbody>
         </table>
       </div>
     </div>

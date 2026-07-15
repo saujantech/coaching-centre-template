@@ -35,6 +35,7 @@
     </div>
     <div class="no-print profile-header-actions">
       <button id="edit-details-btn" class="secondary">Edit Details</button>
+      <button id="send-email-btn" class="secondary">Send Email</button>
       <button id="download-pdf-btn" class="secondary">Download PDF</button>
     </div>
   </section>
@@ -92,12 +93,12 @@
         </table>
       </div>
       <hr class="modal-divider no-print" />
-      <h3 class="no-print">Add a New Fee</h3>
-      <form id="add-fee-form" class="fee-form no-print">
-        <label>Term <input type="text" name="term_label" placeholder="e.g. Term 1 2026" required /></label>
-        <label>Amount <input type="number" name="amount" step="0.01" min="0" required /></label>
-        <label>Due date <input type="date" name="due_date" required /></label>
-        <label>
+      <button type="button" id="add-fee-toggle" class="section-toggle no-print">Add a New Fee</button>
+      <form id="add-fee-form" class="fee-form no-print hidden">
+        <label class="fee-form-term">Term <input type="text" name="term_label" placeholder="e.g. Term 1 2026" required /></label>
+        <label class="fee-form-amount">Amount <input type="number" name="amount" step="0.01" min="0" required /></label>
+        <label class="fee-form-due-date">Due date <input type="date" name="due_date" required /></label>
+        <label class="fee-form-payment-method">
           Payment method
           <select name="payment_method">
             <option value="">None yet</option>
@@ -107,8 +108,14 @@
             <option value="Other">Other</option>
           </select>
         </label>
-        <label>Notes <input type="text" name="notes" placeholder="Optional" /></label>
-        <button type="submit">Add Fee</button>
+        <label class="fee-form-class">
+          Class (optional)
+          <select name="class_id" id="add-fee-class-select">
+            <option value="">No class</option>
+          </select>
+        </label>
+        <label class="fee-form-notes">Notes <input type="text" name="notes" placeholder="Optional" /></label>
+        <button type="submit" class="fee-form-submit">Add Fee</button>
       </form>
     </div>
   </section>

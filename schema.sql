@@ -52,7 +52,7 @@ create table if not exists fees (
   amount_paid numeric(10, 2) not null default 0,
   payment_method text,
   notes text,
-  receipt_url text, -- placeholder for future file-upload work; not used by any UI yet
+  receipt_url text, -- storage object path in the student-files bucket (students/{id}/receipts/...), not a public URL
   paid_date date,
   reminders_sent integer not null default 0,
   last_reminder_at timestamptz,
@@ -119,6 +119,13 @@ create table if not exists classes (
   created_at timestamptz not null default now()
 );
 
+-- fees.class_id: optional link from a fee to the class it's for (e.g.
+-- "Term 3 Maths fee" vs. just "Term 3 fee"). Added via alter table rather
+-- than inline on the fees create table above, since fees is defined
+-- earlier in this script than classes and a forward reference to a
+-- not-yet-created table would fail on a fresh database.
+alter table fees add column if not exists class_id uuid references classes(id);
+
 -- ============================================================
 -- class_teachers
 -- ============================================================
@@ -157,8 +164,20 @@ create table if not exists attendance_records (
   unique (class_id, student_id, date)
 );
 
+-- ============================================================
+-- email_templates
+-- ============================================================
+create table if not exists email_templates (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  subject text not null,
+  body text not null, -- may contain {{student_name}}, {{parent_name}}, {{centre_name}} placeholders, resolved client-side before sending
+  created_at timestamptz not null default now()
+);
+
 create index if not exists fees_student_id_idx on fees(student_id);
 create index if not exists fees_due_date_idx on fees(due_date);
+create index if not exists fees_class_id_idx on fees(class_id);
 create index if not exists trial_bookings_status_idx on trial_bookings(status);
 create index if not exists trial_bookings_student_id_idx on trial_bookings(student_id);
 create index if not exists student_documents_student_id_idx on student_documents(student_id);
@@ -183,6 +202,7 @@ alter table classes enable row level security;
 alter table class_teachers enable row level security;
 alter table class_enrollments enable row level security;
 alter table attendance_records enable row level security;
+alter table email_templates enable row level security;
 
 -- Public booking page: anonymous users may only INSERT a trial booking.
 create policy "anon can submit trial bookings"
@@ -251,11 +271,18 @@ create policy "owner full access to attendance_records"
   using (true)
   with check (true);
 
+create policy "owner full access to email_templates"
+  on email_templates for all
+  to authenticated
+  using (true)
+  with check (true);
+
 -- No policies are defined for the anon role on students, fees,
 -- student_documents, teachers, teacher_documents, classes,
--- class_enrollments, class_teachers, or attendance_records, and none
--- for update/delete on trial_bookings by anon — those fall through
--- RLS's default-deny, matching the "insert only" requirement.
+-- class_enrollments, class_teachers, attendance_records, or
+-- email_templates, and none for update/delete on trial_bookings by
+-- anon — those fall through RLS's default-deny, matching the
+-- "insert only" requirement.
 
 -- Everything else (server-side jobs: fee reminders, booking notifications)
 -- runs through the service_role key from Vercel serverless functions,

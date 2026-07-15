@@ -85,6 +85,25 @@
   }
 }
 
+/* Sticky top tab row on desktop/tablet — same position: sticky approach
+   as the mobile header above, just for the dashboard's .tabs instead.
+   Mobile doesn't need this: .tabs is already display: none there in
+   favor of the fixed bottom-tab-bar (see further below), so this only
+   applies above that breakpoint. Unlike the mobile header, .tabs isn't
+   the first element in .dashboard's padded box, so only the side
+   padding needs canceling/re-adding for the sticky background to bleed
+   edge-to-edge — there's no top inset to cancel. */
+@media (min-width: 641px) {
+  .tabs {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    margin: 0 -1.25rem 1.5rem;
+    padding: 0 1.25rem;
+    background: var(--bg);
+  }
+}
+
 .back-link {
   color: var(--muted);
   font-size: var(--text-small);
@@ -414,6 +433,14 @@ tr:last-child td {
 .badge.active { background: var(--success-bg); color: var(--success); }
 .badge.inactive { background: var(--bg); color: var(--muted); }
 
+/* Always apply this to an inner <div> inside a <td>, never to the <td>
+   itself. display: flex on a table cell overrides its default display:
+   table-cell, which removes it from the table's row-height algorithm —
+   that cell then sizes to fit only its own (possibly short/wrapped)
+   content instead of stretching to match the row, so its border-bottom
+   renders partway up the row instead of at the row's actual bottom edge.
+   That exact bug shipped in the fees/bookings/templates tables until it
+   was caught by an actual screenshot, not just a Playwright pass/fail. */
 .row-actions {
   display: flex;
   flex-wrap: wrap;
@@ -447,8 +474,16 @@ tr:last-child td {
   margin-bottom: 0.75rem;
 }
 
+/* !important is deliberate: this is a utility class whose entire purpose
+   is to unconditionally hide an element regardless of what other classes
+   it's combined with. Without it, a same-specificity component class
+   declared later in this file (e.g. .fee-form's display: grid) silently
+   wins the cascade over "hidden" just because of source order — which is
+   exactly what happened with the Add a New Fee toggle (collapsed-by-
+   default state and the click handler were both working correctly; only
+   the CSS never actually hid anything). */
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 .filter-bar {
@@ -612,13 +647,14 @@ tr:last-child td {
   font-size: var(--text-small);
 }
 
-/* Mobile-first: fields stack full-width; once there's room (the modal
-   itself tops out at 480px) Term/Amount/Due date sit in one row and the
-   button spans beneath them. */
-/* Specificity note: .modal-body form (below) sets display/flex-direction/gap
-   on every form inside a modal. .fee-form needs to win over that generic
-   rule, so it's scoped as .modal-body .fee-form rather than a bare class. */
-.modal-body .fee-form {
+/* Add a New Fee form (student.html) — mobile-first: everything stacks in
+   a single column in document order (Term, Amount, Due date, Payment
+   method, Class, Notes, button). Once there's room, Term+Amount pair up,
+   then Due date+Payment method, with Class, Notes, and the submit button
+   each spanning the full width beneath — same mobile-first grid pattern
+   as .student-form-grid below, just with named areas since this layout
+   isn't a simple uniform N-column grid. */
+.fee-form {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0.75rem;
@@ -628,24 +664,91 @@ tr:last-child td {
    content's intrinsic width (e.g. the date input's native picker chrome)
    and can make the grid overflow its container instead of compressing.
    min-width: 0 lets 1fr columns actually shrink to fit. */
-.modal-body .fee-form > * {
+.fee-form > * {
   min-width: 0;
 }
 
 @media (min-width: 480px) {
-  .modal-body .fee-form {
-    grid-template-columns: repeat(3, 1fr);
+  .fee-form {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "term amount"
+      "due-date payment-method"
+      "class class"
+      "notes notes"
+      "submit submit";
     align-items: end;
   }
 
-  .modal-body .fee-form button {
-    grid-column: 1 / -1;
+  .fee-form-term {
+    grid-area: term;
+  }
+
+  .fee-form-amount {
+    grid-area: amount;
+  }
+
+  .fee-form-due-date {
+    grid-area: due-date;
+  }
+
+  .fee-form-payment-method {
+    grid-area: payment-method;
+  }
+
+  .fee-form-class {
+    grid-area: class;
+  }
+
+  .fee-form-notes {
+    grid-area: notes;
+  }
+
+  .fee-form-submit {
+    grid-area: submit;
+    justify-self: start;
   }
 }
 
+/* Collapsed-by-default section toggle (e.g. "Add a New Fee") — same
+   CSS-drawn chevron technique as .sort-header's sort-direction triangle,
+   just rotating between pointing down (collapsed, "more below") and up
+   (expanded) instead of swapping asc/desc. */
+.section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: var(--text-section-heading);
+  color: inherit;
+  cursor: pointer;
+}
+
+.section-toggle::after {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid currentColor;
+  transition: transform 0.15s ease;
+}
+
+.section-toggle.expanded::after {
+  transform: rotate(180deg);
+}
+
 /* Pairs related fields (year level + status, phone + email) side by side
-   once there's room — same mobile-first grid pattern as .fee-form, same
-   specificity fix (.modal-body form below would otherwise win). */
+   once there's room — same mobile-first grid pattern as .fee-form.
+   Scoped as .modal-body .student-form-grid (not a bare class) because
+   .modal-body form (below) sets display/flex-direction/gap on every form
+   inside a modal, and this needs to win over that generic rule — unlike
+   .fee-form, which isn't inside a modal so doesn't need the same fix. */
 .modal-body .student-form-grid {
   display: grid;
   grid-template-columns: 1fr;

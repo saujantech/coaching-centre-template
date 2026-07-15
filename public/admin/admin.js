@@ -180,8 +180,17 @@ async function getSignedFileUrl(path) {
 // ---------------------------------------------------------------
 // Shared modal component
 // ---------------------------------------------------------------
-function openModal(contentHtml, { wide = false } = {}) {
+// onClose (optional) fires exactly once, right before the modal is torn
+// down, regardless of *how* it closes — Cancel button, backdrop click, the
+// X button, or Escape all funnel through the single closeModal() below, so
+// it's the one place that can reliably catch all four. Used by the Record
+// Payment modal to clean up an uploaded-but-never-saved receipt file (see
+// showRecordPaymentModal).
+let modalOnClose = null;
+
+function openModal(contentHtml, { wide = false, onClose = null } = {}) {
   closeModal();
+  modalOnClose = onClose;
 
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
@@ -206,6 +215,11 @@ function openModal(contentHtml, { wide = false } = {}) {
 
 function closeModal() {
   const backdrop = document.getElementById("modal-backdrop");
+  const onClose = modalOnClose;
+  modalOnClose = null;
+  // Runs before the backdrop is removed, while the modal's own DOM (and
+  // anything it stashed on it, like a dataset flag) is still queryable.
+  if (onClose) onClose();
   if (backdrop) backdrop.remove();
   document.body.classList.remove("modal-open");
   document.removeEventListener("keydown", handleModalEscape);
@@ -362,15 +376,17 @@ async function initDashboard() {
     renderTeachers();
   });
 
+  document.getElementById("add-template-btn").addEventListener("click", () => showEmailTemplateFormModal(null, loadEmailTemplates));
+
   // Lets "back" links from student.html / class.html / teacher.html land
   // on the tab they came from, instead of always resetting to the
   // default (Students) tab.
   const requestedTab = new URLSearchParams(window.location.search).get("tab");
-  if (requestedTab === "students" || requestedTab === "classes" || requestedTab === "teachers" || requestedTab === "bookings") {
+  if (["students", "classes", "teachers", "bookings", "templates"].includes(requestedTab)) {
     switchTab(requestedTab);
   }
 
-  await Promise.all([loadBookings(), loadStudents(), loadClasses(), loadTeachers()]);
+  await Promise.all([loadBookings(), loadStudents(), loadClasses(), loadTeachers(), loadEmailTemplates()]);
 }
 
 function switchTab(tab) {
@@ -428,6 +444,18 @@ async function initStudentPage() {
 
   document.getElementById("enroll-class-btn").addEventListener("click", showEnrollClassModal);
 
+  document.getElementById("send-email-btn").addEventListener("click", showSendEmailModal);
+
+  // Collapsed by default (same "hide by default, reveal on click" pattern
+  // as the attendance notes toggle) — this form is used rarely relative to
+  // how often the Fees section itself is viewed, so it shouldn't be open
+  // by default every time the page loads.
+  document.getElementById("add-fee-toggle").addEventListener("click", (e) => {
+    const form = document.getElementById("add-fee-form");
+    const expanded = form.classList.toggle("hidden") === false;
+    e.currentTarget.classList.toggle("expanded", expanded);
+  });
+
   document.getElementById("add-fee-form").addEventListener("submit", addFee);
   document.getElementById("document-input").addEventListener("change", (e) => handleDocumentUpload(e, "student"));
 
@@ -439,7 +467,7 @@ async function loadStudentProfile(studentId) {
 
   try {
     const [student] = await supabaseTable(
-      `students?id=eq.${studentId}&select=*,fees(*),documents:student_documents(*),class_enrollments(*,classes(*)),attendance_records(*)`
+      `students?id=eq.${studentId}&select=*,fees(*,classes(id,subject,class_name)),documents:student_documents(*),class_enrollments(*,classes(*)),attendance_records(*)`
     );
 
     if (!student) {
@@ -454,6 +482,7 @@ async function loadStudentProfile(studentId) {
     renderStudentClassesSection();
     renderStudentAttendanceHistory();
     renderFeesSection();
+    renderAddFeeClassOptions();
     renderDocumentList("student");
     await refreshProfilePhotoAvatar("profile-photo-avatar", "student");
   } catch (err) {
@@ -487,17 +516,28 @@ function renderFeesSection() {
     .map(
       (f) => `
       <tr data-fee-id="${f.id}">
-        <td>${escapeHtml(titleCaseWords(f.term_label))}</td>
+        <td>
+          ${escapeHtml(titleCaseWords(f.term_label))}
+          ${f.classes ? `<br/><small>${escapeHtml(classDisplayName(f.classes))}</small>` : ""}
+        </td>
         <td>${window.CENTRE_CONFIG.currencySymbol}${f.amount}</td>
         <td>${escapeHtml(formatDate(f.due_date))}</td>
         <td><span class="badge ${f.paid_status}">${escapeHtml(titleCase(f.paid_status))}</span></td>
         <td>${f.payment_method ? escapeHtml(f.payment_method) : "-"}</td>
         <td>${f.notes ? escapeHtml(f.notes) : "-"}</td>
-        <td class="row-actions">
-          <a href="/admin/fee-document.html?fee_id=${f.id}&type=invoice" target="_blank" rel="noopener">Invoice</a>
-          ${parseFloat(f.amount_paid || 0) > 0 ? `<a href="/admin/fee-document.html?fee_id=${f.id}&type=receipt" target="_blank" rel="noopener">Receipt</a>` : ""}
+        <td>
+          <div class="row-actions">
+            <a href="/admin/fee-document.html?fee_id=${f.id}&type=invoice" target="_blank" rel="noopener">Invoice</a>
+            ${parseFloat(f.amount_paid || 0) > 0 ? `<a href="/admin/fee-document.html?fee_id=${f.id}&type=receipt" target="_blank" rel="noopener">Receipt</a>` : ""}
+          </div>
         </td>
-        <td>${f.paid_status !== "paid" ? `<button class="secondary" data-action="record-payment">Record Payment</button>` : ""}</td>
+        <td>
+          ${
+            f.paid_status === "paid"
+              ? `<button class="secondary" data-action="view-payment">View Payment</button>`
+              : `<button class="secondary" data-action="record-payment">Record Payment</button>`
+          }
+        </td>
         <td><button class="secondary" data-action="delete-fee">Delete</button></td>
       </tr>`
     )
@@ -509,9 +549,29 @@ function renderFeesSection() {
     btn.addEventListener("click", () => showRecordPaymentModal(btn.closest("tr").dataset.feeId));
   });
 
+  tbody.querySelectorAll("button[data-action='view-payment']").forEach((btn) => {
+    btn.addEventListener("click", () => showViewPaymentModal(btn.closest("tr").dataset.feeId));
+  });
+
   tbody.querySelectorAll("button[data-action='delete-fee']").forEach((btn) => {
     btn.addEventListener("click", () => deleteFee(btn.closest("tr").dataset.feeId));
   });
+}
+
+// Populates the Add Fee form's "Class" dropdown with only the classes
+// this student is actively enrolled in — a fee doesn't require a class
+// link (it's optional context), so a student with zero active
+// enrollments just sees the single "No class" fallback option rather
+// than an empty/broken-looking select.
+function renderAddFeeClassOptions() {
+  const select = document.getElementById("add-fee-class-select");
+  const activeEnrollments = (currentStudent.class_enrollments || []).filter((e) => e.status === "active");
+
+  select.innerHTML =
+    `<option value="">No class</option>` +
+    activeEnrollments
+      .map((e) => `<option value="${e.classes.id}">${escapeHtml(classDisplayName(e.classes))}</option>`)
+      .join("");
 }
 
 // A fee record is hard-deleted, unlike students/classes/enrollments (which
@@ -1684,11 +1744,13 @@ async function loadBookings() {
         <td>${escapeHtml(b.parent_name)}<br/><small>${escapeHtml(b.parent_phone || "")} ${escapeHtml(b.parent_email || "")}</small></td>
         <td>${escapeHtml(formatPreferredTime(b.preferred_time))}</td>
         <td><span class="badge ${b.status}">${escapeHtml(titleCase(b.status))}</span></td>
-        <td class="row-actions">
-          ${b.status === "new" ? `<button class="secondary" data-action="contacted">Mark contacted</button>` : ""}
-          ${b.status !== "converted" ? `<button data-action="convert">Convert to student</button>` : ""}
-          ${b.status !== "declined" && b.status !== "converted" ? `<button class="secondary" data-action="decline">Decline</button>` : ""}
-          ${b.status === "converted" && b.student_id ? `<button class="secondary" data-action="view-student">View Student</button>` : ""}
+        <td>
+          <div class="row-actions">
+            ${b.status === "new" ? `<button class="secondary" data-action="contacted">Mark contacted</button>` : ""}
+            ${b.status !== "converted" ? `<button data-action="convert">Convert to student</button>` : ""}
+            ${b.status !== "declined" && b.status !== "converted" ? `<button class="secondary" data-action="decline">Decline</button>` : ""}
+            ${b.status === "converted" && b.student_id ? `<button class="secondary" data-action="view-student">View Student</button>` : ""}
+          </div>
         </td>
       </tr>`
       )
@@ -1851,17 +1913,73 @@ function showRecordPaymentModal(feeId) {
           <option value="Other">Other</option>
         </select>
       </label>
+      <label>Date paid <input type="date" name="paid_date" value="${todayIso()}" /></label>
       <label>Notes <input type="text" name="notes" placeholder="Optional" value="${escapeHtml(fee.notes || "")}" /></label>
+      <label class="file-upload-label secondary">
+        Upload Receipt (optional)
+        <input type="file" id="receipt-upload-input" accept="image/jpeg,image/png,image/webp,application/pdf" hidden />
+      </label>
+      <p id="receipt-upload-status" class="status-msg"></p>
       <p id="record-payment-status" class="status-msg"></p>
       <div class="dialog-actions">
         <button type="button" class="secondary" id="record-payment-cancel">Cancel</button>
         <button type="submit">Save Payment</button>
       </div>
     </form>
-  `);
+  `, {
+    // A receipt uploads immediately on selection, but the form itself
+    // might never be submitted (Cancel, backdrop click, X, Escape all
+    // land here). If a receipt was uploaded and the form wasn't
+    // successfully saved (recordFeePayment sets paymentSaved="true" right
+    // before closing on success), that upload has nothing in the database
+    // pointing to it — delete it rather than leaving an orphaned object.
+    onClose: () => {
+      const form = document.getElementById("record-payment-form");
+      if (form && form.dataset.receiptPath && !form.dataset.paymentSaved) {
+        storageDelete(form.dataset.receiptPath).catch(() => {});
+      }
+    },
+  });
+
+  // Uploaded eagerly (as soon as a file is picked) rather than deferred
+  // to form submit, matching the existing document-upload pattern — the
+  // resulting path is stashed on the form itself so recordFeePayment()
+  // can pick it up whenever the form is actually submitted.
+  modalBody.querySelector("#receipt-upload-input").addEventListener("change", (e) => handleReceiptUpload(e, fee));
 
   modalBody.querySelector("#record-payment-cancel").addEventListener("click", closeModal);
   modalBody.querySelector("#record-payment-form").addEventListener("submit", (e) => recordFeePayment(e, fee));
+}
+
+async function handleReceiptUpload(e, fee) {
+  const input = e.target;
+  const file = input.files[0];
+  input.value = ""; // allow re-selecting the same file later
+  if (!file) return;
+
+  const status = document.getElementById("receipt-upload-status");
+  const form = document.getElementById("record-payment-form");
+
+  const error = validateFile(file, ALLOWED_DOCUMENT_TYPES);
+  if (error) {
+    status.textContent = error;
+    status.className = "status-msg error";
+    return;
+  }
+
+  status.textContent = "Uploading...";
+  status.className = "status-msg";
+
+  try {
+    const path = `students/${currentStudent.id}/receipts/${fee.id}-${Date.now()}-${sanitizeFileName(file.name)}`;
+    await storageUpload(path, file);
+    form.dataset.receiptPath = path;
+    status.textContent = `Receipt attached: ${file.name}`;
+    status.className = "status-msg success";
+  } catch (err) {
+    status.textContent = `Failed to upload receipt: ${err.message}`;
+    status.className = "status-msg error";
+  }
 }
 
 async function recordFeePayment(e, fee) {
@@ -1904,15 +2022,67 @@ async function recordFeePayment(e, fee) {
         amount_paid: amountPaid,
         payment_method: data.payment_method || null,
         notes: data.notes ? data.notes.trim() : null,
-        paid_date: paidStatus === "paid" ? new Date().toISOString().slice(0, 10) : null,
+        // Same "only meaningful once fully paid" gating as before this
+        // feature — a partial/unpaid fee still has no settled payment
+        // date. When left at its today-default, this reproduces the
+        // previous hardcoded-to-today behavior exactly; changing it lets
+        // the owner backdate a fully-paid entry.
+        paid_date: paidStatus === "paid" ? data.paid_date || todayIso() : null,
+        receipt_url: form.dataset.receiptPath || fee.receipt_url || null,
       }),
     });
+    // Must be set before closeModal() — its onClose hook checks this flag
+    // to decide whether an uploaded receipt is orphaned or was just saved.
+    form.dataset.paymentSaved = "true";
     closeModal();
     await loadStudentProfile(currentStudent.id);
   } catch (err) {
     status.textContent = `Failed to save payment: ${err.message}`;
     status.className = "status-msg error";
     submitBtn.disabled = false;
+  }
+}
+
+// Read-only summary shown once a fee is fully paid — mirrors the
+// information captured by recordFeePayment() above, plus a link to the
+// receipt file (if one was uploaded) via the same signed-URL pattern
+// used for student/teacher documents.
+async function showViewPaymentModal(feeId) {
+  const fee = currentStudent.fees.find((f) => f.id === feeId);
+
+  const receiptRow = fee.receipt_url
+    ? `<div><dt>Receipt</dt><dd><button type="button" class="secondary" id="view-receipt-btn">View Receipt</button></dd></div>`
+    : "";
+
+  const modalBody = openModal(`
+    <h3>Payment — ${escapeHtml(titleCaseWords(fee.term_label))}</h3>
+    <dl class="fee-document-details">
+      <div><dt>Amount paid</dt><dd>${window.CENTRE_CONFIG.currencySymbol}${fee.amount_paid}</dd></div>
+      <div><dt>Payment method</dt><dd>${fee.payment_method ? escapeHtml(fee.payment_method) : "-"}</dd></div>
+      <div><dt>Date paid</dt><dd>${fee.paid_date ? escapeHtml(formatDate(fee.paid_date)) : "-"}</dd></div>
+      <div><dt>Notes</dt><dd>${fee.notes ? escapeHtml(fee.notes) : "-"}</dd></div>
+      ${receiptRow}
+    </dl>
+    <p id="view-payment-status" class="status-msg"></p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="view-payment-close">Close</button>
+    </div>
+  `);
+
+  modalBody.querySelector("#view-payment-close").addEventListener("click", closeModal);
+
+  const receiptBtn = modalBody.querySelector("#view-receipt-btn");
+  if (receiptBtn) {
+    receiptBtn.addEventListener("click", async () => {
+      const status = modalBody.querySelector("#view-payment-status");
+      try {
+        const url = await getSignedFileUrl(fee.receipt_url);
+        window.open(url, "_blank", "noopener");
+      } catch (err) {
+        status.textContent = `Failed to open receipt: ${err.message}`;
+        status.className = "status-msg error";
+      }
+    });
   }
 }
 
@@ -2209,6 +2379,265 @@ function showTeacherFormModal(teacher, onSaved) {
       status.textContent = `Failed to save teacher: ${err.message}`;
       status.className = "status-msg error";
       submitBtn.disabled = false;
+    }
+  });
+}
+
+// ---------------------------------------------------------------
+// Email Templates (dashboard tab) + Send Email (student.html)
+// ---------------------------------------------------------------
+let emailTemplatesCache = [];
+
+// Kept in one place so the "Add Template" legend and resolveTemplate...()
+// below can't drift out of sync with each other.
+const EMAIL_TEMPLATE_PLACEHOLDERS = ["student_name", "parent_name", "centre_name"];
+
+async function loadEmailTemplates() {
+  const tbody = document.getElementById("templates-body");
+  tbody.innerHTML = `<tr><td colspan="3">Loading...</td></tr>`;
+
+  try {
+    emailTemplatesCache = await supabaseTable("email_templates?select=*&order=name.asc");
+    renderEmailTemplates();
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="3" class="error">Failed to load templates: ${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+function renderEmailTemplates() {
+  const tbody = document.getElementById("templates-body");
+
+  if (emailTemplatesCache.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="3">No email templates yet.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = emailTemplatesCache
+    .map(
+      (t) => `
+    <tr data-id="${t.id}">
+      <td>${escapeHtml(t.name)}</td>
+      <td>${escapeHtml(t.subject)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="secondary" data-action="edit-template">Edit</button>
+          <button class="secondary" data-action="delete-template">Delete</button>
+        </div>
+      </td>
+    </tr>`
+    )
+    .join("");
+
+  tbody.querySelectorAll("button[data-action='edit-template']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const template = emailTemplatesCache.find((t) => t.id === btn.closest("tr").dataset.id);
+      showEmailTemplateFormModal(template, loadEmailTemplates);
+    });
+  });
+
+  tbody.querySelectorAll("button[data-action='delete-template']").forEach((btn) => {
+    btn.addEventListener("click", () => deleteEmailTemplate(btn.closest("tr").dataset.id));
+  });
+}
+
+// template is null for Add, or the existing record for Edit — same
+// isEdit pattern as showTeacherFormModal.
+function showEmailTemplateFormModal(template, onSaved) {
+  const isEdit = !!template;
+  const placeholderLegend = EMAIL_TEMPLATE_PLACEHOLDERS.map((p) => `{{${p}}}`).join(", ");
+
+  const modalBody = openModal(
+    `
+    <h3>${isEdit ? "Edit Template" : "Add Template"}</h3>
+    <form id="template-form" novalidate>
+      <label>Name <input type="text" name="name" required value="${escapeHtml(template?.name || "")}" /></label>
+      <label>Subject <input type="text" name="subject" required value="${escapeHtml(template?.subject || "")}" /></label>
+      <label>
+        Body
+        <textarea name="body" rows="6" required>${escapeHtml(template?.body || "")}</textarea>
+      </label>
+      <p class="text-muted">Available placeholders: ${escapeHtml(placeholderLegend)}</p>
+      <p id="template-form-status" class="status-msg"></p>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" id="template-form-cancel">Cancel</button>
+        <button type="submit">${isEdit ? "Save Changes" : "Add Template"}</button>
+      </div>
+    </form>
+  `,
+    { wide: true }
+  );
+
+  modalBody.querySelector("#template-form-cancel").addEventListener("click", closeModal);
+
+  modalBody.querySelector("#template-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const submitBtn = form.querySelector("button[type='submit']");
+    const status = modalBody.querySelector("#template-form-status");
+    const data = Object.fromEntries(new FormData(form).entries());
+
+    if (!data.name.trim() || !data.subject.trim() || !data.body.trim()) {
+      status.textContent = "Name, subject, and body are all required.";
+      status.className = "status-msg error";
+      return;
+    }
+
+    submitBtn.disabled = true;
+    status.textContent = "Saving...";
+    status.className = "status-msg";
+
+    const payload = { name: data.name.trim(), subject: data.subject.trim(), body: data.body };
+
+    try {
+      if (isEdit) {
+        await supabaseTable(`email_templates?id=eq.${template.id}`, {
+          method: "PATCH",
+          prefer: "return=minimal",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await supabaseTable("email_templates", {
+          method: "POST",
+          prefer: "return=minimal",
+          body: JSON.stringify(payload),
+        });
+      }
+      closeModal();
+      await onSaved();
+    } catch (err) {
+      status.textContent = `Failed to save template: ${err.message}`;
+      status.className = "status-msg error";
+      submitBtn.disabled = false;
+    }
+  });
+}
+
+// Hard delete, like fees — a saved template is just editable content with
+// no historical value once removed, and deleting one has no effect on
+// emails already sent through it (send-custom-email never stores a
+// reference back to the template it came from).
+async function deleteEmailTemplate(templateId) {
+  const template = emailTemplatesCache.find((t) => t.id === templateId);
+  if (!template) return;
+
+  if (!confirm(`Delete the "${template.name}" template? This cannot be undone.`)) return;
+
+  try {
+    await supabaseTable(`email_templates?id=eq.${templateId}`, {
+      method: "DELETE",
+      prefer: "return=minimal",
+    });
+    await loadEmailTemplates();
+  } catch (err) {
+    alert(`Failed to delete template: ${err.message}`);
+  }
+}
+
+// Shared by the Send Email modal's live preview — {{placeholder}} tokens
+// are matched with surrounding whitespace tolerated (e.g. "{{ student_name }}"),
+// same as the pattern this feature was modeled on.
+function resolveTemplatePlaceholders(text, student) {
+  const cfg = window.CENTRE_CONFIG;
+  return text
+    .replace(/{{\s*student_name\s*}}/g, student.full_name)
+    .replace(/{{\s*parent_name\s*}}/g, student.parent_name)
+    .replace(/{{\s*centre_name\s*}}/g, cfg.centreName);
+}
+
+// student.html's "Send Email" button. Per-student only for V1 — no bulk/
+// broadcast sending here, that's a separate feature to consider later.
+async function showSendEmailModal() {
+  const student = currentStudent;
+
+  if (!student.parent_email) {
+    alert("This student doesn't have a parent email on file.");
+    return;
+  }
+
+  const modalBody = openModal(
+    `
+    <h3>Send Email</h3>
+    <p class="text-muted">To: ${escapeHtml(student.parent_name)} (${escapeHtml(student.parent_email)})</p>
+    <label>
+      Template
+      <select id="send-email-template-select">
+        <option value="">Choose a template...</option>
+      </select>
+    </label>
+    <label>Subject <input type="text" id="send-email-subject" /></label>
+    <label>Body <textarea id="send-email-body" rows="8"></textarea></label>
+    <p id="send-email-status" class="status-msg"></p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="send-email-cancel">Cancel</button>
+      <button type="button" id="send-email-submit">Send Email</button>
+    </div>
+  `,
+    { wide: true }
+  );
+
+  modalBody.querySelector("#send-email-cancel").addEventListener("click", closeModal);
+
+  const templateSelect = modalBody.querySelector("#send-email-template-select");
+  const subjectInput = modalBody.querySelector("#send-email-subject");
+  const bodyInput = modalBody.querySelector("#send-email-body");
+  const status = modalBody.querySelector("#send-email-status");
+  const sendBtn = modalBody.querySelector("#send-email-submit");
+
+  let templates = [];
+  try {
+    templates = await supabaseTable("email_templates?select=*&order=name.asc");
+    templateSelect.innerHTML +=
+      templates.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
+  } catch (err) {
+    status.textContent = `Failed to load templates: ${err.message}`;
+    status.className = "status-msg error";
+  }
+
+  // Resolves against this specific student's real data as soon as a
+  // template is picked, but the fields stay fully editable afterward —
+  // this is a starting point for the owner to tweak, not a locked preview.
+  templateSelect.addEventListener("change", () => {
+    const template = templates.find((t) => t.id === templateSelect.value);
+    if (!template) return;
+    subjectInput.value = resolveTemplatePlaceholders(template.subject, student);
+    bodyInput.value = resolveTemplatePlaceholders(template.body, student);
+  });
+
+  sendBtn.addEventListener("click", async () => {
+    if (!subjectInput.value.trim() || !bodyInput.value.trim()) {
+      status.textContent = "Subject and body are required.";
+      status.className = "status-msg error";
+      return;
+    }
+
+    sendBtn.disabled = true;
+    status.textContent = "Sending...";
+    status.className = "status-msg";
+
+    try {
+      const session = getSession();
+      const res = await fetch("/api/send-custom-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          to: student.parent_email,
+          subject: subjectInput.value,
+          body: bodyInput.value,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to send email");
+
+      status.textContent = "Email sent.";
+      status.className = "status-msg success";
+      setTimeout(closeModal, 1000);
+    } catch (err) {
+      status.textContent = `Failed to send email: ${err.message}`;
+      status.className = "status-msg error";
+      sendBtn.disabled = false;
     }
   });
 }
@@ -2565,6 +2994,7 @@ async function addFee(e) {
       prefer: "return=minimal",
       body: JSON.stringify({
         student_id: currentStudent.id,
+        class_id: data.class_id || null,
         term_label: titleCaseWords(data.term_label.trim()),
         amount: data.amount,
         due_date: data.due_date,
