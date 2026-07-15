@@ -7,28 +7,23 @@
 <link rel="apple-touch-icon" href="/icons/icon-180.png" />
 <link rel="stylesheet" href="/tokens.css" />
 <link rel="stylesheet" href="/admin/admin.css" />
-<main class="login-page">
-  <div class="login-card">
-    <img id="logo" class="logo" alt="" />
-    <h1 id="centre-name"></h1>
-    <p class="subtitle">Owner login</p>
+<main class="dashboard">
+  <div class="no-print fee-document-toolbar">
+    <a id="back-link" href="/admin/dashboard.html?tab=students" class="back-link">&larr; Back to Student</a>
+    <button id="print-btn">Print / Save as PDF</button>
+  </div>
 
-    <form id="login-form" novalidate>
-      <label>
-        Email
-        <input type="email" name="email" required autocomplete="username" />
-      </label>
-      <label>
-        Password
-        <input type="password" name="password" required autocomplete="current-password" />
-      </label>
-      <button type="submit" id="login-btn">Log in</button>
-      <p id="login-status" role="status"></p>
-    </form>
+  <div class="card fee-document">
+    <header class="fee-document-header">
+      <img id="doc-logo" class="fee-document-logo" alt="" />
+      <span id="doc-centre-name" class="fee-document-centre-name"></span>
+    </header>
+    <h1 id="doc-title"></h1>
+    <div id="doc-body"></div>
   </div>
 </main>
 
 <script src="/centre.config.js"></script>
 <script src="/pwa.js"></script>
 <script src="/admin/admin.js"></script>
-<script>initLoginPage();</script>
+<script>initFeeDocumentPage();</script>

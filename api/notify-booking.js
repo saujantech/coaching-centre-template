@@ -23,7 +23,7 @@ module.exports = async (req, res) => {
   const html = `
     <h2>New trial booking — ${centreConfig.centreName}</h2>
     <p><strong>Child:</strong> ${escapeHtml(child_name)} (${escapeHtml(year_level)})</p>
-    <p><strong>Subject:</strong> ${escapeHtml((subject || []).join(", "))}</p>
+    <p><strong>Subject:</strong> ${escapeHtml(Array.isArray(subject) ? subject.join(", ") : subject)}</p>
     <p><strong>Preferred time:</strong> ${escapeHtml(preferred_time || "Not specified")}</p>
     <p><strong>Parent:</strong> ${escapeHtml(parent_name)}</p>
     <p><strong>Phone:</strong> ${escapeHtml(parent_phone || "Not provided")}</p>

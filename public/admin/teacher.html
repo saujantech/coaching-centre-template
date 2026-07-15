@@ -1,0 +1,61 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<link rel="manifest" href="/api/manifest" />
+<meta name="theme-color" content="" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="" />
+<link rel="apple-touch-icon" href="/icons/icon-180.png" />
+<link rel="stylesheet" href="/tokens.css" />
+<link rel="stylesheet" href="/admin/admin.css" />
+<main class="dashboard">
+  <div class="dash-header">
+    <div class="dash-header-context">
+      <small id="centre-name"></small>
+      <a href="/admin/dashboard.html?tab=teachers" class="back-link">&larr; Back to Teachers</a>
+    </div>
+    <button id="logout-btn" class="secondary">Log out</button>
+  </div>
+
+  <section id="teacher-profile-header" class="card profile-header">
+    <div class="profile-header-top">
+      <div id="profile-photo-avatar" class="avatar avatar-lg"></div>
+      <div class="profile-header-info">
+        <h1 id="teacher-name"></h1>
+        <div class="profile-badges">
+          <span id="teacher-status-badge" class="badge"></span>
+        </div>
+        <p id="teacher-contact-info" class="text-muted"></p>
+        <p id="teacher-bio" class="text-muted hidden"></p>
+      </div>
+    </div>
+    <button id="edit-teacher-details-btn" class="secondary">Edit Details</button>
+  </section>
+
+  <section id="teacher-classes-section">
+    <div class="section-toolbar">
+      <h2>Classes</h2>
+    </div>
+    <div class="card">
+      <ul id="teacher-class-list" class="document-list"></ul>
+    </div>
+  </section>
+
+  <section id="teacher-documents-section">
+    <div class="section-toolbar">
+      <h2>Documents</h2>
+    </div>
+    <div class="card">
+      <ul id="document-list" class="document-list"></ul>
+      <label class="file-upload-label secondary">
+        Upload Document(s)
+        <input type="file" id="document-input" accept="image/jpeg,image/png,image/webp,application/pdf" multiple hidden />
+      </label>
+      <p id="document-upload-status" class="status-msg"></p>
+    </div>
+  </section>
+</main>
+
+<script src="/centre.config.js"></script>
+<script src="/pwa.js"></script>
+<script src="/admin/admin.js"></script>
+<script>initTeacherPage();</script>

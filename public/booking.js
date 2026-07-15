@@ -8,7 +8,7 @@
     `Questions? Call ${cfg.contactPhone} or email ${cfg.contactEmail}`;
 
   const logo = document.getElementById("logo");
-  logo.addEventListener("error", () => logo.classList.add("hidden"));
+  logo.onerror = () => { logo.style.display = "none"; };
   logo.src = cfg.logoUrl;
   logo.alt = cfg.centreName;
 
@@ -22,37 +22,79 @@
     yearSelect.appendChild(opt);
   });
 
-  const subjectOptions = document.getElementById("subject-options");
+  const subjectsContainer = document.getElementById("subjects");
   cfg.subjects.forEach((subject, i) => {
     const id = `subject-${i}`;
-    const label = document.createElement("label");
-    label.innerHTML = `<input type="checkbox" name="subject" value="${subject}" id="${id}" /> <span>${subject}</span>`;
-    subjectOptions.appendChild(label);
+    const wrapper = document.createElement("label");
+    wrapper.className = "checkbox-label";
+    wrapper.innerHTML = `<input type="checkbox" name="subject" id="${id}" value="${subject}" /> ${subject}`;
+    subjectsContainer.appendChild(wrapper);
+  });
+
+  document.getElementById("preferred-time-picker").outerHTML = timePickerHtml("preferred-time-picker", { allowEmpty: true });
+  const preferredTimePicker = document.getElementById("preferred-time-picker");
+  setTimePickerValue(preferredTimePicker, null);
+
+  const phoneInput = document.querySelector('input[name="parent_phone"]');
+  phoneInput.addEventListener("input", () => {
+    phoneInput.value = phoneInput.value.replace(/\D/g, "").slice(0, 10);
   });
 
   const form = document.getElementById("booking-form");
   const submitBtn = document.getElementById("submit-btn");
   const status = document.getElementById("form-status");
+  const consent = document.getElementById("consent");
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    submitBtn.disabled = true;
-    status.textContent = "Submitting...";
-    status.className = "";
+    status.className = "status-msg";
 
     const formData = new FormData(form);
-    const payload = Object.fromEntries(formData.entries());
-    delete payload.consent;
-
-    payload.subject = formData.getAll("subject");
-
+    const subjects = formData.getAll("subject");
+    const phone = (formData.get("parent_phone") || "").trim();
     const preferredDate = formData.get("preferred_date");
-    const preferredTime = formData.get("preferred_time");
-    payload.preferred_time =
-      preferredDate && preferredTime
-        ? `${preferredDate} ${preferredTime}`
-        : preferredDate || preferredTime || null;
-    delete payload.preferred_date;
+    const preferredTimeOfDay = getTimePickerValue(preferredTimePicker);
+
+    if (subjects.length === 0) {
+      status.textContent = "Please select at least one subject.";
+      status.className = "status-msg error";
+      return;
+    }
+
+    if (!/^0\d{9}$/.test(phone)) {
+      status.textContent = "Please enter a valid Australian mobile number, e.g. 0412 345 678.";
+      status.className = "status-msg error";
+      return;
+    }
+
+    if (!consent.checked) {
+      status.textContent = "Please agree to the Terms & Conditions and Privacy Policy to continue.";
+      status.className = "status-msg error";
+      return;
+    }
+
+    let preferredTime = null;
+    if (preferredDate && preferredTimeOfDay) {
+      preferredTime = `${preferredDate}T${preferredTimeOfDay}`;
+    } else if (preferredDate) {
+      preferredTime = preferredDate;
+    } else if (preferredTimeOfDay) {
+      preferredTime = preferredTimeOfDay;
+    }
+
+    const payload = {
+      child_name: formData.get("child_name"),
+      year_level: formData.get("year_level"),
+      subject: subjects,
+      preferred_time: preferredTime,
+      parent_name: formData.get("parent_name"),
+      parent_phone: phone || null,
+      parent_email: formData.get("parent_email"),
+      message: formData.get("message") || null,
+    };
+
+    submitBtn.disabled = true;
+    status.textContent = "Submitting...";
 
     try {
       const res = await fetch(`${cfg.supabaseUrl}/rest/v1/trial_bookings`, {
@@ -78,10 +120,10 @@
 
       form.reset();
       status.textContent = "Thanks! We'll be in touch shortly to confirm your trial.";
-      status.className = "success";
+      status.className = "status-msg success";
     } catch (err) {
       status.textContent = "Something went wrong. Please try again or contact us directly.";
-      status.className = "error";
+      status.className = "status-msg error";
     } finally {
       submitBtn.disabled = false;
     }

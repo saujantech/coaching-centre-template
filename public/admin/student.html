@@ -1,0 +1,133 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<link rel="manifest" href="/api/manifest" />
+<meta name="theme-color" content="" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="" />
+<link rel="apple-touch-icon" href="/icons/icon-180.png" />
+<link rel="stylesheet" href="/tokens.css" />
+<link rel="stylesheet" href="/admin/admin.css" />
+<main class="dashboard">
+  <div id="print-header" class="print-only">
+    <img id="print-logo" alt="" />
+    <h1 id="print-centre-name"></h1>
+  </div>
+
+  <div class="dash-header no-print">
+    <div class="dash-header-context">
+      <small id="centre-name"></small>
+      <a href="/admin/dashboard.html?tab=students" class="back-link">&larr; Back to Students</a>
+    </div>
+    <button id="logout-btn" class="secondary">Log out</button>
+  </div>
+
+  <section id="student-profile-header" class="card profile-header">
+    <div class="profile-header-top">
+      <div id="profile-photo-avatar" class="avatar avatar-lg"></div>
+      <div class="profile-header-info">
+        <h1 id="student-name"></h1>
+        <div class="profile-badges">
+          <span id="student-year-badge" class="badge"></span>
+          <span id="student-status-badge" class="badge"></span>
+        </div>
+        <p id="student-parent-info" class="text-muted"></p>
+      </div>
+    </div>
+    <div class="no-print profile-header-actions">
+      <button id="edit-details-btn" class="secondary">Edit Details</button>
+      <button id="download-pdf-btn" class="secondary">Download PDF</button>
+    </div>
+  </section>
+
+  <section id="student-classes-section">
+    <div class="section-toolbar">
+      <h2>Classes</h2>
+      <button id="enroll-class-btn" class="no-print">Enroll in Class</button>
+    </div>
+    <div class="card">
+      <p id="attendance-summary-total" class="text-muted"></p>
+      <ul id="student-class-list" class="document-list"></ul>
+    </div>
+
+    <hr class="modal-divider" />
+    <h3>Attendance History</h3>
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Class</th>
+              <th>Status</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="attendance-history-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="student-fees-section">
+    <div class="section-toolbar">
+      <h2>Fees</h2>
+    </div>
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Term</th>
+              <th>Amount</th>
+              <th>Due</th>
+              <th>Status</th>
+              <th>Method</th>
+              <th>Notes</th>
+              <th>Documents</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="fees-body"></tbody>
+        </table>
+      </div>
+      <hr class="modal-divider no-print" />
+      <h3 class="no-print">Add a New Fee</h3>
+      <form id="add-fee-form" class="fee-form no-print">
+        <label>Term <input type="text" name="term_label" placeholder="e.g. Term 1 2026" required /></label>
+        <label>Amount <input type="number" name="amount" step="0.01" min="0" required /></label>
+        <label>Due date <input type="date" name="due_date" required /></label>
+        <label>
+          Payment method
+          <select name="payment_method">
+            <option value="">None yet</option>
+            <option value="Cash">Cash</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Card">Card</option>
+            <option value="Other">Other</option>
+          </select>
+        </label>
+        <label>Notes <input type="text" name="notes" placeholder="Optional" /></label>
+        <button type="submit">Add Fee</button>
+      </form>
+    </div>
+  </section>
+
+  <section id="student-documents-section" class="no-print">
+    <div class="section-toolbar">
+      <h2>Documents</h2>
+    </div>
+    <div class="card">
+      <ul id="document-list" class="document-list"></ul>
+      <label class="file-upload-label secondary">
+        Upload Document(s)
+        <input type="file" id="document-input" accept="image/jpeg,image/png,image/webp,application/pdf" multiple hidden />
+      </label>
+      <p id="document-upload-status" class="status-msg"></p>
+    </div>
+  </section>
+</main>
+
+<script src="/centre.config.js"></script>
+<script src="/pwa.js"></script>
+<script src="/admin/admin.js"></script>
+<script>initStudentPage();</script>

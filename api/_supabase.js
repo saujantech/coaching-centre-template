@@ -18,11 +18,12 @@ async function supabaseRequest(path, options = {}) {
     },
   });
 
-  const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Supabase ${options.method || "GET"} ${path} failed: ${res.status} ${text}`);
+    const body = await res.text();
+    throw new Error(`Supabase ${options.method || "GET"} ${path} failed: ${res.status} ${body}`);
   }
 
+  const text = await res.text();
   return text ? JSON.parse(text) : null;
 }
 

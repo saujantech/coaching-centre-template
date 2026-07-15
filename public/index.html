@@ -1,3 +1,5 @@
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/tokens.css" />
 <link rel="stylesheet" href="style.css" />
 <main class="page">
   <header class="hero">
@@ -19,9 +21,9 @@
         <select name="year_level" id="year-level" required></select>
       </label>
 
-      <fieldset id="subject-fieldset">
-        <legend>Subject(s)</legend>
-        <div id="subject-options" class="checkbox-list"></div>
+      <fieldset>
+        <legend>Subjects</legend>
+        <div id="subjects" class="checkbox-group"></div>
       </fieldset>
 
       <label>
@@ -31,7 +33,7 @@
 
       <label>
         Preferred time
-        <input type="time" name="preferred_time" />
+        <div id="preferred-time-picker"></div>
       </label>
 
       <label>
@@ -40,12 +42,13 @@
       </label>
 
       <label>
-        Phone
+        Phone <span class="required-mark" aria-hidden="true">*</span>
         <input
           type="tel"
           name="parent_phone"
           inputmode="numeric"
           pattern="0[0-9]{9}"
+          maxlength="10"
           placeholder="0412 345 678"
           required
         />
@@ -61,17 +64,17 @@
         <textarea name="message" rows="3"></textarea>
       </label>
 
-      <label class="checkbox-row">
-        <input type="checkbox" name="consent" required />
+      <label class="checkbox-label">
+        <input type="checkbox" name="consent" id="consent" required />
         <span>
-          I agree to the <a href="/terms.html" target="_blank">Terms &amp; Conditions</a>
-          and <a href="/privacy.html" target="_blank">Privacy Policy</a>, and consent to
+          I agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms &amp; Conditions</a>
+          and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>, and consent to
           this information being used to contact me about this booking.
         </span>
       </label>
 
       <button type="submit" id="submit-btn">Request a Trial</button>
-      <p id="form-status" role="status"></p>
+      <p id="form-status" class="status-msg" role="status"></p>
     </form>
   </section>
 
@@ -81,4 +84,5 @@
 </main>
 
 <script src="/centre.config.js"></script>
+<script src="/time-picker.js"></script>
 <script src="booking.js"></script>

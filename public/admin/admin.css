@@ -1,22 +1,5 @@
-:root {
-  --brand: #2563eb;
-  --text: #1f2937;
-  --muted: #6b7280;
-  --bg: #f3f4f6;
-  --card-bg: #ffffff;
-  --border: #e5e7eb;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-}
+/* Page-specific styles for the admin login page and dashboard. Shared
+   tokens, resets, typography, and form controls live in /tokens.css. */
 
 /* --- Login page --- */
 .login-page {
@@ -30,7 +13,8 @@ body {
 .login-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
   padding: 2rem;
   width: 100%;
   max-width: 360px;
@@ -40,12 +24,6 @@ body {
 .login-card .logo {
   height: 48px;
   margin-bottom: 0.5rem;
-}
-
-.login-card h1 {
-  font-size: 1.4rem;
-  margin: 0 0 0.25rem;
-  color: var(--brand);
 }
 
 .subtitle {
@@ -58,61 +36,6 @@ body {
   flex-direction: column;
   gap: 1rem;
   text-align: left;
-}
-
-/* --- Shared form controls --- */
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-  font-size: 0.9rem;
-}
-
-input,
-select,
-textarea {
-  font: inherit;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-}
-
-button {
-  font: inherit;
-  font-weight: 600;
-  color: #fff;
-  background: var(--brand);
-  border: none;
-  border-radius: 8px;
-  padding: 0.625rem 1rem;
-  cursor: pointer;
-}
-
-button.secondary {
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-#login-status,
-.status-msg {
-  min-height: 1.25rem;
-  font-size: 0.9rem;
-  margin: 0;
-}
-
-.error {
-  color: #b91c1c;
-}
-
-.success {
-  color: #15803d;
 }
 
 /* --- Dashboard --- */
@@ -130,9 +53,184 @@ button:disabled {
 }
 
 .dash-header h1 {
-  font-size: 1.3rem;
-  color: var(--brand);
   margin: 0;
+}
+
+.dash-header-context {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.dash-header-context small {
+  font-weight: 600;
+}
+
+/* --- Sticky headers on mobile (app-shell feel: header stays put while
+   content scrolls underneath). The negative margin cancels .dashboard's
+   own side/top padding so the sticky bar bleeds edge-to-edge (otherwise
+   its background wouldn't cover the gutters, and scrolled content would
+   visibly pass behind a narrower band); the matching padding re-adds the
+   same inset so the header's own content still lines up with the page
+   below it. Desktop is untouched — .dashboard's padding there stays as-is. */
+@media (max-width: 640px) {
+  .dash-header,
+  .fee-document-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    margin: -1.5rem -1.25rem 1.5rem;
+    padding: 1rem 1.25rem;
+    background: var(--bg);
+  }
+}
+
+.back-link {
+  color: var(--muted);
+  font-size: var(--text-small);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: var(--text);
+}
+
+/* --- Student profile page --- */
+.profile-header {
+  margin-bottom: 1.5rem;
+}
+
+.class-subject-line {
+  margin: -0.5rem 0 0.75rem;
+}
+
+/* --- Attendance --- */
+#class-attendance-section label {
+  margin-bottom: 1rem;
+}
+
+.attendance-row {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.attendance-notes-input {
+  width: 100%;
+}
+
+.attendance-row:last-child {
+  border-bottom: none;
+}
+
+.attendance-student-name {
+  font-weight: 600;
+}
+
+.attendance-toggle-group {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.attendance-toggle {
+  flex: 1;
+  padding: 0.4rem 0.5rem;
+  font-size: var(--text-small);
+  font-weight: 600;
+  background: var(--card-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.attendance-toggle:hover:not(.active) {
+  background: var(--bg);
+}
+
+/* Reveals/hides the per-student notes input inline — sized to match the
+   Present/Absent/Late toggles rather than the larger default button. */
+.attendance-note-toggle {
+  flex-shrink: 0;
+  padding: 0.4rem 0.6rem;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+
+.attendance-toggle.active[data-status="present"] {
+  background: var(--success-bg);
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.attendance-toggle.active[data-status="absent"] {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.attendance-toggle.active[data-status="late"] {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+@media (min-width: 480px) {
+  .attendance-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .attendance-toggle-group {
+    flex-shrink: 0;
+  }
+
+  .attendance-notes-input {
+    /* Forces its own line below name + toggle-group instead of squeezing
+       into the same row. */
+    flex: 1 1 100%;
+  }
+}
+
+/* Clickable date entry in the class page's Attendance History list —
+   same visual language as .document-list li a (see tokens.css), just a
+   <button> instead of a link since it triggers JS, not navigation. */
+.attendance-history-date {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.attendance-history-date:hover .document-name {
+  text-decoration: underline;
+}
+
+.profile-header-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.profile-header-info h1 {
+  margin: 0;
+}
+
+.profile-badges {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0.375rem 0;
 }
 
 .tabs {
@@ -152,6 +250,10 @@ button:disabled {
   cursor: pointer;
 }
 
+.tab-btn:hover:not(.active) {
+  color: var(--text);
+}
+
 .tab-btn.active {
   color: var(--brand);
   border-bottom: 2px solid var(--brand);
@@ -165,13 +267,81 @@ button:disabled {
   display: block;
 }
 
+/* --- Mobile bottom tab bar ---
+   Hidden by default (desktop/tablet keep the top .tabs row); shown only
+   below the mobile breakpoint, where it replaces .tabs entirely. Uses the
+   same .tab-btn class + data-tab attributes as the top row so it's driven
+   by the exact same click/active-state JS in admin.js — see dashboard.html. */
+.bottom-tab-bar {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .tabs {
+    display: none;
+  }
+
+  .bottom-tab-bar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    background: var(--card-bg);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .bottom-tab-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    min-height: 56px;
+    padding: 0.5rem 0.25rem;
+    background: none;
+    color: var(--muted);
+    border: none;
+    border-radius: 0;
+    font-size: var(--text-small);
+    font-weight: 600;
+  }
+
+  .bottom-tab-btn:hover:not(.active) {
+    background: none;
+    color: var(--muted);
+  }
+
+  .bottom-tab-btn svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .bottom-tab-btn.active {
+    color: var(--brand);
+  }
+
+  /* Room at the bottom of the scrollable area so content isn't hidden
+     behind the fixed bottom tab bar (dashboard.html only has one — class/
+     student/teacher pages don't include .bottom-tab-bar, so this is a
+     no-op padding increase there, which is harmless). */
+  .dashboard {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Tables live inside a .card for a contained, structured surface; the
+   scroll wrapper keeps wide tables usable on narrow phone screens. */
+.table-scroll {
+  overflow-x: auto;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
 }
 
 th,
@@ -179,7 +349,12 @@ td {
   text-align: left;
   padding: 0.625rem 0.75rem;
   border-bottom: 1px solid var(--border);
-  font-size: 0.9rem;
+  font-size: var(--text-body);
+  white-space: nowrap;
+}
+
+td {
+  white-space: normal;
 }
 
 th {
@@ -187,35 +362,82 @@ th {
   font-weight: 600;
 }
 
+/* Clickable, sortable column header — CSS-drawn triangle rather than a
+   text arrow glyph, so it renders correctly regardless of the page's
+   served charset. */
+.sort-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sort-header::after {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 5px solid currentColor;
+  opacity: 0.3;
+}
+
+.sort-header.sort-active::after {
+  opacity: 1;
+}
+
+.sort-header.sort-active.sort-desc::after {
+  border-bottom: none;
+  border-top: 5px solid currentColor;
+}
+
 tr:last-child td {
   border-bottom: none;
 }
 
-.badge {
-  display: inline-block;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.badge.new { background: #dbeafe; color: #1d4ed8; }
-.badge.contacted { background: #fef9c3; color: #a16207; }
-.badge.converted { background: #dcfce7; color: #15803d; }
-.badge.declined { background: #fee2e2; color: #b91c1c; }
-.badge.paid { background: #dcfce7; color: #15803d; }
-.badge.unpaid { background: #fee2e2; color: #b91c1c; }
-.badge.active { background: #dcfce7; color: #15803d; }
-.badge.inactive { background: #f3f4f6; color: var(--muted); }
+.badge.new { background: var(--info-bg); color: var(--info); }
+.badge.contacted { background: var(--warning-bg); color: var(--warning); }
+.badge.converted { background: var(--success-bg); color: var(--success); }
+.badge.declined { background: var(--danger-bg); color: var(--danger); }
+.badge.paid { background: var(--success-bg); color: var(--success); }
+.badge.partial { background: var(--warning-bg); color: var(--warning); }
+.badge.unpaid { background: var(--danger-bg); color: var(--danger); }
+.badge.present { background: var(--success-bg); color: var(--success); }
+.badge.absent { background: var(--danger-bg); color: var(--danger); }
+.badge.late { background: var(--warning-bg); color: var(--warning); }
+.badge.active { background: var(--success-bg); color: var(--success); }
+.badge.inactive { background: var(--bg); color: var(--muted); }
 
 .row-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
 }
 
 .row-actions button {
   padding: 0.3rem 0.6rem;
-  font-size: 0.8rem;
+  font-size: var(--text-small);
+}
+
+.row-actions a {
+  padding: 0.3rem 0.6rem;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--brand);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+}
+
+.row-actions a:hover {
+  background: var(--bg);
 }
 
 .section-toolbar {
@@ -229,39 +451,291 @@ tr:last-child td {
   display: none;
 }
 
-.student-detail {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1rem;
-  margin-top: 1rem;
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
-.inline-form {
+#student-search {
+  width: 100%;
+}
+
+.status-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: flex-end;
-  margin-top: 0.75rem;
+  gap: 0.4rem;
 }
 
-.inline-form label {
-  min-width: 140px;
+.status-tab {
+  background: var(--card-bg);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: var(--text-small);
+  font-weight: 600;
+  cursor: pointer;
 }
 
-dialog {
+.status-tab:hover:not(.active) {
+  background: var(--bg);
+}
+
+.status-tab.active {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+
+@media (min-width: 640px) {
+  .filter-bar {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  #student-search {
+    max-width: 280px;
+  }
+
+  #student-year-filter {
+    width: auto;
+  }
+}
+
+.modal-divider {
   border: none;
-  border-radius: 12px;
+  border-top: 1px solid var(--border);
+  margin: 1.25rem 0;
+}
+
+/* --- Profile photo --- */
+.profile-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.avatar {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  background-size: cover;
+  background-position: center;
+}
+
+.avatar-lg {
+  width: 96px;
+  height: 96px;
+}
+
+.profile-photo-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.file-upload-label {
+  display: inline-flex;
+  width: fit-content;
+  cursor: pointer;
+}
+
+/* --- Documents --- */
+.document-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.document-list-empty {
+  color: var(--muted);
+  font-size: var(--text-small);
+}
+
+.document-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.document-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.document-name {
+  font-size: var(--text-body);
+  word-break: break-word;
+}
+
+/* A document-list <li> can also just wrap a plain navigation link (e.g.
+   student.html's enrolled-classes list) instead of the info/actions pair. */
+.document-list li a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  width: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.document-list li a:hover .document-name {
+  text-decoration: underline;
+}
+
+.document-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.document-actions button {
+  padding: 0.3rem 0.6rem;
+  font-size: var(--text-small);
+}
+
+/* Mobile-first: fields stack full-width; once there's room (the modal
+   itself tops out at 480px) Term/Amount/Due date sit in one row and the
+   button spans beneath them. */
+/* Specificity note: .modal-body form (below) sets display/flex-direction/gap
+   on every form inside a modal. .fee-form needs to win over that generic
+   rule, so it's scoped as .modal-body .fee-form rather than a bare class. */
+.modal-body .fee-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+/* Grid items default to min-width: auto, which floors each column at its
+   content's intrinsic width (e.g. the date input's native picker chrome)
+   and can make the grid overflow its container instead of compressing.
+   min-width: 0 lets 1fr columns actually shrink to fit. */
+.modal-body .fee-form > * {
+  min-width: 0;
+}
+
+@media (min-width: 480px) {
+  .modal-body .fee-form {
+    grid-template-columns: repeat(3, 1fr);
+    align-items: end;
+  }
+
+  .modal-body .fee-form button {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Pairs related fields (year level + status, phone + email) side by side
+   once there's room — same mobile-first grid pattern as .fee-form, same
+   specificity fix (.modal-body form below would otherwise win). */
+.modal-body .student-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.modal-body .student-form-grid > * {
+  min-width: 0;
+}
+
+@media (min-width: 480px) {
+  .modal-body .student-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Day-of-week checkboxes on the Add Class form: single column on narrow
+   mobile widths, two columns (4 days + 3 days) once there's room — same
+   mobile-first grid pattern as .student-form-grid above. */
+.class-day-checkboxes {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+@media (min-width: 480px) {
+  .class-day-checkboxes {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* --- Shared modal component --- */
+body.modal-open {
+  overflow: hidden;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 100;
+}
+
+.modal {
+  position: relative;
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
-  max-width: 420px;
-  width: 90%;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.4);
+/* Wider variant for content-heavy modals (e.g. Edit Student, with its
+   two-column field groups) — still full-width on mobile, only widens
+   once there's room for it to matter. */
+@media (min-width: 640px) {
+  .modal-wide {
+    max-width: 640px;
+  }
 }
 
-dialog form {
+.modal-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  line-height: 1;
+  font-size: 1.25rem;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  color: var(--text);
+  background: transparent;
+}
+
+.modal-body form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -271,4 +745,172 @@ dialog form {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+.profile-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* --- Print (student.html's "Download PDF" -> window.print()) --- */
+#print-header {
+  display: none;
+}
+
+@media print {
+  /* Buttons are always interactive controls with nothing to do on paper —
+     hiding the element covers every current and future one without
+     needing to hand-tag each. Non-button interactive regions (the whole
+     nav bar, the Add Fee form, the Documents section) are hidden via the
+     explicit .no-print class instead, since they aren't buttons. */
+  button {
+    display: none !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  #print-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  #print-logo {
+    height: 48px;
+  }
+
+  #print-header h1 {
+    margin: 0;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .dashboard {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .card {
+    box-shadow: none;
+    border: 1px solid var(--border);
+    break-inside: avoid;
+  }
+
+  .table-scroll {
+    overflow: visible;
+  }
+
+  table {
+    font-size: var(--text-small);
+  }
+
+  .avatar {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* --- Fee document (invoice / receipt) page --- */
+.fee-document-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.fee-document {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.fee-document-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.fee-document-logo {
+  height: 48px;
+}
+
+.fee-document-centre-name {
+  font-weight: 700;
+  font-size: var(--text-page-heading);
+  color: var(--brand);
+}
+
+.fee-document-details {
+  margin: 1.5rem 0;
+}
+
+.fee-document-details > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.fee-document-details dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.fee-document-details dd {
+  margin: 0;
+  text-align: right;
+}
+
+/* --- Mobile touch targets ---
+   These controls are comfortable to click with a mouse at their default
+   (desktop) padding, but too tight to reliably tap with a thumb. Widened
+   to a ~44px minimum (the standard iOS/Android comfortable tap-target
+   size) only below the mobile breakpoint, so desktop's denser, mouse-
+   oriented layout is untouched. */
+@media (max-width: 640px) {
+  .row-actions button,
+  .row-actions a,
+  .document-actions button {
+    min-height: 44px;
+    padding: 0.6rem 0.9rem;
+  }
+
+  .status-tab {
+    min-height: 44px;
+    padding: 0.5rem 1rem;
+  }
+
+  .attendance-toggle,
+  .attendance-note-toggle {
+    min-height: 44px;
+  }
+
+  .modal-close {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* The sortable column headers are just text with a small triangle —
+     comfortable padding turns the whole header cell into the tap target
+     instead of only the glyph-width text. */
+  .sort-header {
+    display: inline-flex;
+    min-height: 44px;
+    padding: 0.75rem 0;
+  }
+
+  th,
+  td {
+    padding: 0.85rem 0.75rem;
+  }
 }

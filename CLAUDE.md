@@ -26,16 +26,42 @@ Vanilla HTML/CSS/JS · Supabase (Postgres) · Vercel serverless functions
 via GitHub → Vercel.
 
 ## Folder structure
-/public          — public booking page
-/admin           — owner dashboard
-/api             — serverless functions (reminders, notifications)
-centre.config.js — all client-specific settings
-schema.sql       — table + RLS definitions, copy-paste per new client
+/public                       — everything Vercel serves as static files
+  index.html, booking.js        — public trial-booking page
+  terms.html, privacy.html      — placeholder consent pages linked from the booking form
+  style.css, tokens.css         — page-specific styles + shared design tokens (colors, type, form controls)
+  centre.config.js              — all client-specific settings
+  manifest.js is served via /api/manifest (see below), not a static file here
+  sw.js, pwa.js                 — service worker + PWA install/theming wiring for the admin dashboard
+  time-picker.js                — shared time-of-day picker control used by booking and admin forms
+  /icons                        — PWA app icons (icon-180/192/512.png), generated per client — see scripts/generate-icons.js
+  /admin                        — owner dashboard (Supabase Auth login required)
+    index.html, dashboard.html    — login + main dashboard (Trial Bookings, Students tabs)
+    teacher.html, class.html,
+    student.html, fee-document.html — detail/management pages for teachers, classes, a single student, and printable fee receipts/invoices
+    admin.css, admin.js           — shared dashboard styles and logic (incl. Supabase REST calls, JWT refresh/retry)
+/api                           — Vercel serverless functions (Node.js), service_role/Resend key access only
+  notify-booking.js, send-reminders.js — existing booking notification + fee reminder cron
+  manifest.js                    — generates the PWA manifest from centre.config.js on every request
+  _supabase.js, _email.js        — shared request helpers
+/scripts
+  generate-icons.js             — regenerates public/icons/*.png from centre.config.js (name initial + brandColor); dependency-free, run after editing centre.config.js for a new client
+centre.config.js               — see public/centre.config.js above (lives in /public so Vercel serves it)
+schema.sql                     — table + RLS definitions, copy-paste per new client
 
 ## Out of scope for V1
-No real payment processing (paid/unpaid is a manual toggle), no
-attendance tracking, no progress notes, no SMS/WhatsApp, no parent
-logins, no shared/multi-tenant database.
+No real payment gateway/card processing — fees are recorded manually
+(unpaid/partial/paid, amount paid, payment method) and receipts are
+generated as printable documents, not charged automatically. No
+SMS/WhatsApp, no parent logins, no shared/multi-tenant database.
+
+The template now also includes (built beyond the original V1 scope):
+teacher records with document uploads, class scheduling with day/time
+and capacity, class-teacher and class-student enrollment, and attendance
+tracking per class session (present/absent/late). Student and teacher
+document/photo uploads are stored in a Supabase storage bucket and
+accessed via signed URLs, not public ones. The admin dashboard is also
+installable as a PWA (manifest, service worker, home-screen icons).
 
 ## Design
 - Build the admin dashboard mobile-first. Every admin page must work

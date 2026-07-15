@@ -1,0 +1,91 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<link rel="manifest" href="/api/manifest" />
+<meta name="theme-color" content="" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="" />
+<link rel="apple-touch-icon" href="/icons/icon-180.png" />
+<link rel="stylesheet" href="/tokens.css" />
+<link rel="stylesheet" href="/admin/admin.css" />
+<main class="dashboard">
+  <div class="dash-header">
+    <div class="dash-header-context">
+      <small id="centre-name"></small>
+      <a href="/admin/dashboard.html?tab=classes" class="back-link">&larr; Back to Classes</a>
+    </div>
+    <button id="logout-btn" class="secondary">Log out</button>
+  </div>
+
+  <section id="class-header" class="card profile-header"></section>
+
+  <section id="class-roster-section">
+    <div class="section-toolbar">
+      <h2>Roster</h2>
+      <button id="enroll-student-btn">Enroll Student</button>
+    </div>
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Year</th>
+              <th>Enrolled</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="roster-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="class-teachers-section">
+    <div class="section-toolbar">
+      <h2>Teachers</h2>
+      <button id="assign-teacher-btn">Assign Teacher</button>
+    </div>
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Teacher</th>
+              <th>Assigned</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="teacher-roster-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="class-attendance-section">
+    <div class="section-toolbar">
+      <h2>Attendance</h2>
+    </div>
+    <div class="card">
+      <label>Date <input type="date" id="attendance-date" /></label>
+      <div id="attendance-roster"></div>
+      <button id="save-attendance-btn">Save Attendance</button>
+      <p id="attendance-status" class="status-msg"></p>
+    </div>
+  </section>
+
+  <section id="class-attendance-history-section">
+    <div class="section-toolbar">
+      <h2>Attendance History</h2>
+    </div>
+    <div class="card">
+      <ul id="attendance-history-list" class="document-list"></ul>
+    </div>
+  </section>
+</main>
+
+<script src="/centre.config.js"></script>
+<script src="/pwa.js"></script>
+<script src="/admin/admin.js"></script>
+<script>initClassPage();</script>

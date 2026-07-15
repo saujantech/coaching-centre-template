@@ -1,3 +1,11 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<link rel="manifest" href="/api/manifest" />
+<meta name="theme-color" content="" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="" />
+<link rel="apple-touch-icon" href="/icons/icon-180.png" />
+<link rel="stylesheet" href="/tokens.css" />
 <link rel="stylesheet" href="/admin/admin.css" />
 <main class="dashboard">
   <div class="dash-header">
@@ -6,45 +14,148 @@
   </div>
 
   <nav class="tabs">
-    <button class="tab-btn active" data-tab="bookings">Trial Bookings</button>
-    <button class="tab-btn" data-tab="students">Students</button>
+    <button class="tab-btn active" data-tab="students">Students</button>
+    <button class="tab-btn" data-tab="classes">Classes</button>
+    <button class="tab-btn" data-tab="teachers">Teachers</button>
+    <button class="tab-btn" data-tab="bookings">Trial Bookings</button>
   </nav>
 
-  <section id="tab-bookings" class="tab-panel active">
-    <table>
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Child</th>
-          <th>Subject</th>
-          <th>Parent</th>
-          <th>Preferred time</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody id="bookings-body"></tbody>
-    </table>
+  <!-- Mobile-only bottom tab bar (see @media (max-width: 640px) in
+       admin.css, which hides .tabs above and shows this instead). Reuses
+       the same .tab-btn class and data-tab attributes as the top tab row,
+       so initDashboard()'s existing click-wiring and switchTab()'s
+       active-state toggling apply to both automatically — no admin.js
+       changes needed. -->
+  <nav class="bottom-tab-bar" aria-label="Primary">
+    <button class="tab-btn bottom-tab-btn active" data-tab="students">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" /></svg>
+      <span>Students</span>
+    </button>
+    <button class="tab-btn bottom-tab-btn" data-tab="classes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2 2 0 0 1 6 4h5v16H6a2 2 0 0 1-2-2z" /><path d="M20 5.5A2 2 0 0 0 18 4h-5v16h5a2 2 0 0 0 2-2z" /></svg>
+      <span>Classes</span>
+    </button>
+    <button class="tab-btn bottom-tab-btn" data-tab="teachers">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="7.5" r="3.25" /><path d="M6 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M8.5 6 12 4l3.5 2-3.5 2z" /></svg>
+      <span>Teachers</span>
+    </button>
+    <button class="tab-btn bottom-tab-btn" data-tab="bookings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 9.5h16M8 3v3.5M16 3v3.5" /></svg>
+      <span>Bookings</span>
+    </button>
+  </nav>
+
+  <section id="tab-students" class="tab-panel active">
+    <div class="section-toolbar">
+      <h2>Students</h2>
+      <button id="add-student-btn">Add Student</button>
+    </div>
+    <div class="filter-bar">
+      <input type="search" id="student-search" placeholder="Search by student, parent, phone or email" aria-label="Search students" />
+      <div class="status-tabs" id="student-status-filter" role="tablist" aria-label="Filter by status">
+        <button type="button" class="status-tab active" data-status="all">All</button>
+        <button type="button" class="status-tab" data-status="active">Active</button>
+        <button type="button" class="status-tab" data-status="inactive">Inactive</button>
+      </div>
+      <select id="student-year-filter" aria-label="Filter by year level">
+        <option value="all">All years</option>
+      </select>
+    </div>
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th><button type="button" class="sort-header" data-sort="full_name">Student</button></th>
+              <th><button type="button" class="sort-header" data-sort="year_level">Year</button></th>
+              <th>Parent</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="students-body"></tbody>
+        </table>
+      </div>
+    </div>
   </section>
 
-  <section id="tab-students" class="tab-panel">
-    <table>
-      <thead>
-        <tr>
-          <th>Student</th>
-          <th>Year</th>
-          <th>Parent</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody id="students-body"></tbody>
-    </table>
+  <section id="tab-classes" class="tab-panel">
+    <div class="section-toolbar">
+      <h2>Classes</h2>
+      <button id="add-class-btn">Add Class</button>
+    </div>
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Class</th>
+              <th>Day</th>
+              <th>Time</th>
+              <th>Year Level</th>
+              <th>Teacher</th>
+              <th>Enrolled</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="classes-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 
-    <div id="student-detail" class="student-detail hidden"></div>
+  <section id="tab-teachers" class="tab-panel">
+    <div class="section-toolbar">
+      <h2>Teachers</h2>
+      <button id="add-teacher-btn">Add Teacher</button>
+    </div>
+    <div class="filter-bar">
+      <input type="search" id="teacher-search" placeholder="Search by name, phone or email" aria-label="Search teachers" />
+      <div class="status-tabs" id="teacher-status-filter" role="tablist" aria-label="Filter by status">
+        <button type="button" class="status-tab active" data-status="all">All</button>
+        <button type="button" class="status-tab" data-status="active">Active</button>
+        <button type="button" class="status-tab" data-status="inactive">Inactive</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Contact</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="teachers-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-bookings" class="tab-panel">
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Child</th>
+              <th>Subject</th>
+              <th>Parent</th>
+              <th>Preferred time</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="bookings-body"></tbody>
+        </table>
+      </div>
+    </div>
   </section>
 </main>
 
 <script src="/centre.config.js"></script>
+<script src="/pwa.js"></script>
+<script src="/time-picker.js"></script>
 <script src="/admin/admin.js"></script>
 <script>initDashboard();</script>
