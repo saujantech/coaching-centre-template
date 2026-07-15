@@ -880,7 +880,8 @@ body.modal-open {
 @media (max-width: 640px) {
   .row-actions button,
   .row-actions a,
-  .document-actions button {
+  .document-actions button,
+  #fees-body button {
     min-height: 44px;
     padding: 0.6rem 0.9rem;
   }

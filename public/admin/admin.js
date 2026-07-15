@@ -498,15 +498,43 @@ function renderFeesSection() {
           ${parseFloat(f.amount_paid || 0) > 0 ? `<a href="/admin/fee-document.html?fee_id=${f.id}&type=receipt" target="_blank" rel="noopener">Receipt</a>` : ""}
         </td>
         <td>${f.paid_status !== "paid" ? `<button class="secondary" data-action="record-payment">Record Payment</button>` : ""}</td>
+        <td><button class="secondary" data-action="delete-fee">Delete</button></td>
       </tr>`
     )
     .join("");
 
-  tbody.innerHTML = feesRows || `<tr><td colspan="8">No fees recorded.</td></tr>`;
+  tbody.innerHTML = feesRows || `<tr><td colspan="9">No fees recorded.</td></tr>`;
 
   tbody.querySelectorAll("button[data-action='record-payment']").forEach((btn) => {
     btn.addEventListener("click", () => showRecordPaymentModal(btn.closest("tr").dataset.feeId));
   });
+
+  tbody.querySelectorAll("button[data-action='delete-fee']").forEach((btn) => {
+    btn.addEventListener("click", () => deleteFee(btn.closest("tr").dataset.feeId));
+  });
+}
+
+// A fee record is hard-deleted, unlike students/classes/enrollments (which
+// are soft-deactivated to preserve history) — a mistaken amount or term
+// label has no historical value worth keeping around in a disabled state.
+async function deleteFee(feeId) {
+  const fee = currentStudent.fees.find((f) => f.id === feeId);
+  if (!fee) return;
+
+  const confirmed = confirm(
+    `Delete this ${titleCaseWords(fee.term_label)} fee of ${window.CENTRE_CONFIG.currencySymbol}${fee.amount}? This cannot be undone.`
+  );
+  if (!confirmed) return;
+
+  try {
+    await supabaseTable(`fees?id=eq.${feeId}`, {
+      method: "DELETE",
+      prefer: "return=minimal",
+    });
+    await loadStudentProfile(currentStudent.id);
+  } catch (err) {
+    alert(`Failed to delete fee: ${err.message}`);
+  }
 }
 
 // ---------------------------------------------------------------
