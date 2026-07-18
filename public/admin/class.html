@@ -7,10 +7,14 @@
 <link rel="apple-touch-icon" href="/icons/icon-180.png" />
 <link rel="stylesheet" href="/tokens.css" />
 <link rel="stylesheet" href="/admin/admin.css" />
-<main class="dashboard">
+<!-- See dashboard.html for why this exists — revealPage() in admin.js
+     removes it once role-based restrictions have actually been applied. -->
+<div id="role-gate-loading" class="role-gate-loading">Loading...</div>
+<main class="dashboard role-gated">
   <div class="dash-header">
     <div class="dash-header-context">
       <small id="centre-name"></small>
+      <small id="teacher-session-banner" class="text-muted hidden"></small>
       <a href="/admin/dashboard.html?tab=classes" class="back-link">&larr; Back to Classes</a>
     </div>
     <button id="logout-btn" class="secondary">Log out</button>
@@ -21,7 +25,15 @@
   <section id="class-roster-section">
     <div class="section-toolbar">
       <h2>Roster</h2>
-      <button id="enroll-student-btn">Enroll Student</button>
+      <div class="profile-header-actions">
+        <!-- Teacher-only (see applyTeacherClassPageRestrictions in admin.js):
+             the dashboard's Students tab — and its own Add Student — is
+             owner-only, so a teacher has no other way to create a brand
+             new student. Hidden by default; only shown for a teacher
+             session. -->
+        <button id="add-student-to-class-btn" class="secondary hidden">Add Student</button>
+        <button id="enroll-student-btn">Enroll Student</button>
+      </div>
     </div>
     <div class="card">
       <div class="table-scroll">

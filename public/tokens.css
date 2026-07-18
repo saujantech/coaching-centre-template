@@ -145,6 +145,18 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* Keyboard-only focus ring, same token as the form-control focus style
+   above — previously buttons and links fell back to whatever the
+   browser's own default focus outline happens to look like (varies a
+   lot across browsers/OSes), not this app's design system. :focus-visible
+   (not :focus) so a mouse click doesn't show it, only actual keyboard
+   navigation. */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
 fieldset {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);

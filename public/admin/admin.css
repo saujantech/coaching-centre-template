@@ -66,6 +66,14 @@
   font-weight: 600;
 }
 
+/* Overrides the bold centre-name styling above by id, since this element
+   can be nested inside .dash-header-context (class.html/teacher.html) or
+   sit as a plain sibling of the centre name (dashboard.html) — an id
+   selector wins regardless of which. */
+#teacher-session-banner {
+  font-weight: 400;
+}
+
 /* --- Sticky headers on mobile (app-shell feel: header stays put while
    content scrolls underneath). The negative margin cancels .dashboard's
    own side/top padding so the sticky bar bleeds edge-to-edge (otherwise
@@ -113,6 +121,23 @@
 
 .back-link:hover {
   color: var(--text);
+}
+
+/* Student/teacher/class name links rendered as plain <td><a> cells
+   (Students list, Teachers list, class.html's student/teacher rosters) —
+   previously unstyled, so they fell back to the browser's default blue/
+   purple/underlined link colors instead of this app's actual design
+   system. Brand-colored, no underline by default, deliberate underline
+   on hover/focus rather than the browser default. */
+.name-link {
+  color: var(--brand);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.name-link:hover,
+.name-link:focus-visible {
+  text-decoration: underline;
 }
 
 /* --- Student profile page --- */
@@ -397,6 +422,10 @@ th {
   cursor: pointer;
 }
 
+.sort-header:hover {
+  color: var(--brand);
+}
+
 .sort-header::after {
   content: "";
   width: 0;
@@ -484,6 +513,37 @@ tr:last-child td {
    the CSS never actually hid anything). */
 .hidden {
   display: none !important;
+}
+
+/* Hides a brief flash of owner-only UI for a teacher session on load —
+   see revealPage() in admin.js. opacity (not display: none) on the
+   content itself so there's no layout jump when it appears; the overlay
+   sits on top via position: fixed so it doesn't depend on where it lands
+   in the document (no separate reflow to worry about either). Purely
+   cosmetic — RLS is the real boundary regardless of what's briefly here. */
+.role-gated {
+  opacity: 0;
+}
+
+.role-gated.ready {
+  opacity: 1;
+  transition: opacity 0.12s ease;
+}
+
+.role-gate-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: var(--text-small);
+}
+
+.role-gate-loading.hidden {
+  display: none;
 }
 
 .filter-bar {
@@ -729,6 +789,10 @@ tr:last-child td {
   cursor: pointer;
 }
 
+.section-toggle:hover {
+  color: var(--brand);
+}
+
 .section-toggle::after {
   content: "";
   width: 0;
@@ -854,6 +918,27 @@ body.modal-open {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+  align-items: center;
+}
+
+/* teacher.html's login-access group — a single flex item inside
+   .profile-header-actions (see the markup comment there) so it wraps
+   together with Edit Details/Delete Teacher as one coherent group
+   instead of dropping to its own separate, differently-aligned row. The
+   border/background turns it into a clearly delineated "labeled
+   section" in its own right, so even on narrow mobile widths — where
+   the label and button still wrap onto their own line inside it, since
+   there just isn't room for everything in one row — it still reads as
+   one deliberate unit rather than two stray, unrelated-looking rows. */
+.login-access-inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
 }
 
 /* --- Print (student.html's "Download PDF" -> window.print()) --- */

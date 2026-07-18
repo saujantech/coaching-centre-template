@@ -1,3 +1,23 @@
+<script>
+  // Supabase's admin generate_link endpoint has a known limitation where
+  // it sometimes ignores the requested redirect_to and falls back to the
+  // project's bare Site URL instead — which can land a teacher's one-time
+  // recovery token here, on the public booking page, rather than
+  // /admin/confirm-login.html where the actual click-through confirmation
+  // step lives (see api/manage-teacher-login.js). Checked first, before
+  // anything else on this page runs, and matched loosely (just the hash
+  // containing type=recovery and an access_token) rather than tied to
+  // any specific redirect target, so this keeps working regardless of
+  // exactly where Supabase decides to land the token, as long as it's
+  // still somewhere on this domain. location.replace(), not .href, so
+  // this bounce never enters browser history.
+  (function () {
+    var hash = window.location.hash;
+    if (hash.indexOf("type=recovery") !== -1 && hash.indexOf("access_token=") !== -1) {
+      window.location.replace("/admin/confirm-login.html" + hash);
+    }
+  })();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="stylesheet" href="/tokens.css" />
 <link rel="stylesheet" href="style.css" />

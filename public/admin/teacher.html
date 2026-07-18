@@ -7,10 +7,14 @@
 <link rel="apple-touch-icon" href="/icons/icon-180.png" />
 <link rel="stylesheet" href="/tokens.css" />
 <link rel="stylesheet" href="/admin/admin.css" />
-<main class="dashboard">
+<!-- See dashboard.html for why this exists — revealPage() in admin.js
+     removes it once role-based restrictions have actually been applied. -->
+<div id="role-gate-loading" class="role-gate-loading">Loading...</div>
+<main class="dashboard role-gated">
   <div class="dash-header">
     <div class="dash-header-context">
       <small id="centre-name"></small>
+      <small id="teacher-session-banner" class="text-muted hidden"></small>
       <a href="/admin/dashboard.html?tab=teachers" class="back-link">&larr; Back to Teachers</a>
     </div>
     <button id="logout-btn" class="secondary">Log out</button>
@@ -28,7 +32,26 @@
         <p id="teacher-bio" class="text-muted hidden"></p>
       </div>
     </div>
-    <button id="edit-teacher-details-btn" class="secondary">Edit Details</button>
+    <!-- One coherent action row: Edit Details / Delete Teacher always
+         show; the login-access group is a single flex item within this
+         same row (see .login-access-inline in admin.css) rather than a
+         second, separately-wrapped .profile-header-actions block, so it
+         wraps together with the other buttons instead of always landing
+         on its own disconnected row. -->
+    <div class="profile-header-actions">
+      <button id="edit-teacher-details-btn" class="secondary">Edit Details</button>
+      <button id="delete-teacher-btn" class="secondary">Delete Teacher</button>
+      <!-- Owner-only (see applyTeacherTeacherPageRestrictions callers in
+           admin.js); hidden by default and only revealed once the
+           session is confirmed to be the owner, not shown-then-hidden,
+           since toggling another person's login access is an
+           administrative action a teacher viewing their own profile
+           should never even glimpse. -->
+      <div id="login-access-section" class="login-access-inline hidden">
+        <span class="text-muted">Login access: <span id="login-access-badge" class="badge"></span></span>
+        <button id="login-access-toggle-btn" class="secondary"></button>
+      </div>
+    </div>
   </section>
 
   <section id="teacher-classes-section">

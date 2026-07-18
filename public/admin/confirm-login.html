@@ -1,0 +1,20 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<link rel="stylesheet" href="/tokens.css" />
+<link rel="stylesheet" href="/admin/admin.css" />
+<main class="login-page">
+  <div class="login-card">
+    <img id="logo" class="logo" alt="" />
+    <h1 id="centre-name"></h1>
+    <p class="subtitle">Confirm it's really you</p>
+    <p class="text-muted">
+      For security, this link doesn't activate automatically — click below to continue to setting your password.
+    </p>
+    <button id="confirm-login-btn">Click to set your password</button>
+    <p id="confirm-login-status" role="status"></p>
+  </div>
+</main>
+
+<script src="/centre.config.js"></script>
+<script src="/pwa.js"></script>
+<script src="/admin/admin.js"></script>
+<script>initConfirmLoginPage();</script>

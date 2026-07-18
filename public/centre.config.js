@@ -20,6 +20,15 @@
     brandColor: "#2563eb",
     tagline: "Helping students reach their potential",
 
+    // The centre's actual deployed URL (no trailing slash) — used server-
+    // side (e.g. api/manage-teacher-login.js) wherever a fully-qualified
+    // link back into the app is needed, such as an auth redirect_to. Kept
+    // as a fixed, owner-controlled config value rather than read off the
+    // incoming request (e.g. req.headers.host), since a request header is
+    // caller-supplied and shouldn't be trusted for something this
+    // sensitive.
+    siteUrl: "https://your-site.vercel.app",
+
     // --- Contact ---
     contactEmail: "owner@example.com",
     contactPhone: "+61 400 000 000",

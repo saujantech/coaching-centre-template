@@ -65,6 +65,97 @@ async function supabaseTable(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+// Calls a Postgres function exposed via PostgREST (POST /rest/v1/rpc/<fn>),
+// e.g. the current_teacher_id()/teacher_assigned_to_class()/
+// teacher_can_access_student() RLS helper functions defined in schema.sql.
+async function supabaseRpc(fnName, args = {}) {
+  const cfg = window.CENTRE_CONFIG;
+  const res = await authenticatedFetch(`${cfg.supabaseUrl}/rest/v1/rpc/${fnName}`, {
+    method: "POST",
+    headers: { ...getSupabaseHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  });
+
+  if (!res.ok) throw new Error(await res.text());
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+// Cached per page load — undefined means "not checked yet", null means
+// "this session is the owner", a string means "this session is that
+// teacher". Every admin page that needs to branch its UI by role calls
+// this once (e.g. at the top of its init function) rather than each
+// re-deriving its own RPC call.
+let cachedTeacherId;
+
+async function getCurrentTeacherId() {
+  if (cachedTeacherId !== undefined) return cachedTeacherId;
+  try {
+    cachedTeacherId = await supabaseRpc("current_teacher_id");
+  } catch {
+    // RLS is what actually enforces every boundary here — this UI check
+    // is only about not showing options a teacher session would be
+    // rejected for. Failing "owner-shaped" on an RPC error is the safer
+    // default: worst case a legitimate owner briefly sees nothing hidden
+    // (no functional loss), whereas failing "teacher-shaped" could hide
+    // real owner functionality behind a transient network hiccup.
+    cachedTeacherId = null;
+  }
+  return cachedTeacherId;
+}
+
+async function isTeacherSession() {
+  return (await getCurrentTeacherId()) !== null;
+}
+
+// Cached the same way as cachedTeacherId above — undefined means "not
+// fetched yet". current_teacher_id() only ever returns an id, never a
+// name, so this is a normal supabaseTable() lookup by that id, not a
+// second role-detection mechanism: the RPC result is still the sole
+// source of truth for who the session is.
+let cachedTeacherName;
+
+async function getCurrentTeacherName() {
+  if (cachedTeacherName !== undefined) return cachedTeacherName;
+  const teacherId = await getCurrentTeacherId();
+  if (teacherId === null) {
+    cachedTeacherName = null;
+    return null;
+  }
+  try {
+    const [teacher] = await supabaseTable(`teachers?id=eq.${teacherId}&select=full_name`);
+    cachedTeacherName = teacher ? teacher.full_name : null;
+  } catch {
+    cachedTeacherName = null;
+  }
+  return cachedTeacherName;
+}
+
+// Shared by every page a teacher session can reach (dashboard.html,
+// class.html, teacher.html) — each already has a #teacher-session-banner
+// element in its header, hidden by default so an owner session sees
+// exactly what it does today. No-ops entirely for the owner.
+async function applyTeacherSessionBanner() {
+  if (!(await isTeacherSession())) return;
+  const name = await getCurrentTeacherName();
+  const banner = document.getElementById("teacher-session-banner");
+  if (banner && name) {
+    banner.textContent = `Logged in as ${name}`;
+    banner.classList.remove("hidden");
+  }
+}
+
+// Reveals the page's main content and removes the loading overlay — see
+// the .role-gated/.role-gate-loading CSS and the markup comment in
+// dashboard.html/class.html/teacher.html. Called once role-based
+// restrictions have actually been applied (or on an early "no id
+// specified" error before that check even runs — either way, once
+// there's nothing further that could change what's shown).
+function revealPage() {
+  document.querySelector(".role-gated")?.classList.add("ready");
+  document.getElementById("role-gate-loading")?.classList.add("hidden");
+}
+
 async function refreshSession() {
   const cfg = window.CENTRE_CONFIG;
   const session = getSession();
@@ -242,6 +333,19 @@ function initLoginPage() {
   logo.alt = cfg.centreName;
   document.documentElement.style.setProperty("--brand", cfg.brandColor);
 
+  // A teacher's first login lands here: manage-teacher-login.js emails a
+  // Supabase recovery link (see api/manage-teacher-login.js for why a
+  // one-time link is used instead of a temporary password) which
+  // redirects back to this same page with #access_token=...&type=recovery
+  // in the URL. Checked before the normal getSession() redirect below,
+  // since this can happen even if an old session still happens to be
+  // sitting in localStorage.
+  const hashParams = new URLSearchParams(window.location.hash.slice(1));
+  if (hashParams.get("type") === "recovery" && hashParams.get("access_token")) {
+    initSetPasswordFlow(hashParams.get("access_token"), hashParams.get("refresh_token"));
+    return;
+  }
+
   if (getSession()) {
     window.location.href = "/admin/dashboard.html";
     return;
@@ -289,6 +393,139 @@ function initLoginPage() {
   });
 }
 
+// Replaces the login form with a "set your password" form, reusing the
+// same .login-card shell rather than a separate page — the recovery link
+// already proves this visitor is the intended teacher (Supabase verified
+// the token before redirecting here), so accessToken is used directly to
+// set the new password, then to establish a normal session immediately.
+function initSetPasswordFlow(accessToken, refreshToken) {
+  const cfg = window.CENTRE_CONFIG;
+  const card = document.querySelector(".login-card");
+
+  card.innerHTML = `
+    <img id="logo" class="logo" alt="" />
+    <h1 id="centre-name"></h1>
+    <p class="subtitle">Set your password</p>
+    <form id="set-password-form" novalidate>
+      <label>
+        New password
+        <input type="password" name="password" minlength="8" required autocomplete="new-password" />
+      </label>
+      <button type="submit" id="set-password-btn">Set Password &amp; Log In</button>
+      <p id="set-password-status" role="status"></p>
+    </form>
+  `;
+
+  document.getElementById("centre-name").textContent = cfg.centreName;
+  const logo = document.getElementById("logo");
+  logo.onerror = () => { logo.style.display = "none"; };
+  logo.src = cfg.logoUrl;
+  logo.alt = cfg.centreName;
+
+  document.getElementById("set-password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("set-password-btn");
+    const status = document.getElementById("set-password-status");
+    const password = new FormData(e.target).get("password");
+
+    if (password.length < 8) {
+      status.textContent = "Password must be at least 8 characters.";
+      status.className = "status-msg error";
+      return;
+    }
+
+    btn.disabled = true;
+    status.textContent = "Saving...";
+    status.className = "status-msg";
+
+    try {
+      const res = await fetch(`${cfg.supabaseUrl}/auth/v1/user`, {
+        method: "PUT",
+        headers: {
+          apikey: cfg.supabaseAnonKey,
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password }),
+      });
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.msg || body.error_description || "Failed to set password");
+      }
+
+      setSession({ access_token: accessToken, refresh_token: refreshToken });
+      window.location.href = "/admin/dashboard.html";
+    } catch (err) {
+      status.textContent = err.message;
+      status.className = "status-msg error";
+      btn.disabled = false;
+    }
+  });
+}
+
+// admin/confirm-login.html — the intermediate page manage-teacher-login.js
+// links to instead of Supabase's real recovery action_link directly.
+// Automated email-scanner prefetching (Gmail and others silently
+// auto-visiting links in emails) is a well-documented way for a
+// single-use Supabase auth token to get consumed before the real human
+// ever clicks it. The real link is carried in the URL *fragment*
+// (#link=...), never a query param: fragments are never sent to the
+// server and aren't read by scanners that don't execute JavaScript, and
+// the real link is only ever navigated to from inside a real click
+// handler below — never automatically on page load.
+function initConfirmLoginPage() {
+  // URLSearchParams already percent-decodes .get() results — no separate
+  // decodeURIComponent() needed.
+  const hashParams = new URLSearchParams(window.location.hash.slice(1));
+
+  // Two different shapes can land here, because of the same Supabase
+  // redirect_to bug public/index.html works around: #link=<encoded
+  // supabase verify url> from the actual email (the normal case, which
+  // needs the click-through button below to defeat scanner prefetching
+  // of a still-unconsumed single-use token), or a raw
+  // #access_token=...&type=recovery session hash, bounced here from
+  // wherever Supabase actually decided to land it. The raw case means
+  // the one-time token has ALREADY been exchanged for a real session by
+  // the time it gets here — there's no separate link left to click
+  // through — so it skips straight to the same set-password step
+  // admin/index.html uses for its own recovery links, before doing any
+  // of this page's own (redundant, in that branch) title/logo setup.
+  if (hashParams.get("type") === "recovery" && hashParams.get("access_token")) {
+    initSetPasswordFlow(hashParams.get("access_token"), hashParams.get("refresh_token"));
+    return;
+  }
+
+  const cfg = window.CENTRE_CONFIG;
+  document.title = `Confirm login — ${cfg.centreName}`;
+  document.getElementById("centre-name").textContent = cfg.centreName;
+  const logo = document.getElementById("logo");
+  logo.onerror = () => { logo.style.display = "none"; };
+  logo.src = cfg.logoUrl;
+  logo.alt = cfg.centreName;
+  document.documentElement.style.setProperty("--brand", cfg.brandColor);
+
+  const btn = document.getElementById("confirm-login-btn");
+  const status = document.getElementById("confirm-login-status");
+  const link = hashParams.get("link");
+
+  if (!link) {
+    status.textContent = "This link is missing or invalid.";
+    status.className = "status-msg error";
+    btn.disabled = true;
+    return;
+  }
+
+  btn.addEventListener("click", () => {
+    // Disabled + relabeled before navigation even starts, not after —
+    // the cross-origin navigation to Supabase isn't instant, and this is
+    // a single-use link, so a second click in that window must be
+    // impossible, not just unlikely.
+    btn.disabled = true;
+    btn.textContent = "Redirecting...";
+    window.location.href = link;
+  });
+}
+
 // ---------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------
@@ -308,9 +545,23 @@ async function initDashboard() {
     window.location.href = "/admin/index.html";
   });
 
+  const isTeacher = await isTeacherSession();
+  if (isTeacher) applyTeacherDashboardRestrictions();
+  await applyTeacherSessionBanner();
+  revealPage();
 
   document.querySelectorAll(".tab-btn").forEach((btn) => {
+    // "My Profile" navigates to a different page entirely rather than
+    // switching tabs within this one — wired separately below instead.
+    if (btn.dataset.tab === "my-profile") return;
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+
+  document.querySelectorAll("[data-tab='my-profile']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const teacherId = await getCurrentTeacherId();
+      if (teacherId) window.location.href = `/admin/teacher.html?id=${teacherId}`;
+    });
   });
 
   document.getElementById("add-student-btn").addEventListener("click", showAddStudentModal);
@@ -378,6 +629,14 @@ async function initDashboard() {
 
   document.getElementById("add-template-btn").addEventListener("click", () => showEmailTemplateFormModal(null, loadEmailTemplates));
 
+  if (isTeacher) {
+    // A teacher only ever has one destination here — no other tab is
+    // reachable, so any ?tab= from a stale link/bookmark is ignored.
+    switchTab("classes");
+    await loadClasses();
+    return;
+  }
+
   // Lets "back" links from student.html / class.html / teacher.html land
   // on the tab they came from, instead of always resetting to the
   // default (Students) tab.
@@ -387,6 +646,21 @@ async function initDashboard() {
   }
 
   await Promise.all([loadBookings(), loadStudents(), loadClasses(), loadTeachers(), loadEmailTemplates()]);
+}
+
+// Hides everything a teacher session can't use: the Students, Teachers,
+// Trial Bookings, and Email Templates tabs (fees live inside the
+// Students tab's student.html, so hiding this tab is also how fee UI is
+// kept out of a teacher's reach), plus "Add Class" (teachers only have a
+// select policy on classes — they can view their assigned classes, not
+// create new ones). Classes is the one tab a teacher keeps, unchanged.
+function applyTeacherDashboardRestrictions() {
+  const ownerOnlyTabs = ["students", "teachers", "bookings", "templates"];
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    if (ownerOnlyTabs.includes(btn.dataset.tab)) btn.classList.add("hidden");
+    if (btn.dataset.tab === "my-profile") btn.classList.remove("hidden");
+  });
+  document.getElementById("add-class-btn")?.classList.add("hidden");
 }
 
 function switchTab(tab) {
@@ -458,6 +732,20 @@ async function initStudentPage() {
 
   document.getElementById("add-fee-form").addEventListener("submit", addFee);
   document.getElementById("document-input").addEventListener("change", (e) => handleDocumentUpload(e, "student"));
+  document.getElementById("delete-student-btn").addEventListener("click", () => showDeleteEntityModal("student"));
+
+  // fees has no teacher policy at all, and email_templates/send-custom-email
+  // are owner-only too, so both would just fail for a teacher — hidden
+  // rather than left to error. Edit Details, Documents, and Classes all
+  // have real teacher-scoped policies and stay exactly as they are.
+  // Delete is owner-only too — RLS has no delete policy for teachers on
+  // students at all (confirmed in schema.sql), so this button is hidden
+  // as defense-in-depth for the UI, not as the actual security boundary.
+  if (await isTeacherSession()) {
+    document.getElementById("student-fees-section")?.classList.add("hidden");
+    document.getElementById("send-email-btn")?.classList.add("hidden");
+    document.getElementById("delete-student-btn")?.classList.add("hidden");
+  }
 
   await loadStudentProfile(studentId);
 }
@@ -935,7 +1223,7 @@ function renderClasses() {
         .join(", ");
       return `
       <tr data-id="${c.id}">
-        <td><a href="/admin/class.html?id=${c.id}">${escapeHtml(classDisplayName(c))}</a></td>
+        <td><a class="name-link" href="/admin/class.html?id=${c.id}">${escapeHtml(classDisplayName(c))}</a></td>
         <td>${escapeHtml(formatDays(c.day_of_week))}</td>
         <td>${formatTimeRange(c.start_time, c.end_time)}</td>
         <td>${c.year_level ? escapeHtml(c.year_level) : "-"}</td>
@@ -1069,10 +1357,18 @@ async function showAddClassModal() {
     status.className = "status-msg";
 
     try {
-      const [newClass] = await supabaseTable("classes", {
+      // Same client-generated-id pattern used for student creation (see
+      // showStudentFormModal) — Add Class is owner-only today, and an
+      // owner's unrestricted SELECT policy means the return=representation
+      // read-back this used to rely on never actually failed here, but
+      // there's no reason for this insert to depend on that at all when
+      // the id can just be generated up front instead.
+      const newClassId = crypto.randomUUID();
+      await supabaseTable("classes", {
         method: "POST",
-        prefer: "return=representation",
+        prefer: "return=minimal",
         body: JSON.stringify({
+          id: newClassId,
           subject,
           class_name: data.class_name ? data.class_name.trim() : null,
           day_of_week: selectedDays,
@@ -1090,7 +1386,7 @@ async function showAddClassModal() {
             supabaseTable("class_teachers", {
               method: "POST",
               prefer: "return=minimal",
-              body: JSON.stringify({ class_id: newClass.id, teacher_id: teacherId, status: "active" }),
+              body: JSON.stringify({ class_id: newClassId, teacher_id: teacherId, status: "active" }),
             })
           )
         );
@@ -1127,11 +1423,17 @@ async function initClassPage() {
   const classId = new URLSearchParams(window.location.search).get("id");
   if (!classId) {
     document.getElementById("class-header").innerHTML = `<p class="error">No class specified.</p>`;
+    revealPage();
     return;
   }
 
   document.getElementById("enroll-student-btn").addEventListener("click", showEnrollStudentModal);
   document.getElementById("assign-teacher-btn").addEventListener("click", showAssignTeacherModal);
+  document.getElementById("add-student-to-class-btn").addEventListener("click", showAddStudentToClassModal);
+
+  if (await isTeacherSession()) applyTeacherClassPageRestrictions();
+  await applyTeacherSessionBanner();
+  revealPage();
 
   const dateInput = document.getElementById("attendance-date");
   dateInput.value = todayIso();
@@ -1203,7 +1505,56 @@ function renderClassHeader() {
       ${cls.year_level ? escapeHtml(cls.year_level) : "All year levels"} - ${escapeHtml(enrolledText)}
     </p>
     ${notesSection}
+    <div class="profile-header-actions">
+      <button id="delete-class-btn" class="secondary">Delete Class</button>
+    </div>
   `;
+
+  // Re-wired on every render since renderClassHeader() replaces the whole
+  // innerHTML (including this button) each time it's called. Teachers
+  // only have a select policy on classes (no delete), so the button is
+  // hidden for them — checked here, not just once in
+  // applyTeacherClassPageRestrictions(), because this innerHTML
+  // replacement would otherwise recreate it unhidden on every subsequent
+  // render (e.g. after enrolling a student). cachedTeacherId is safe to
+  // read directly (no await) since initClassPage always resolves
+  // isTeacherSession() before the first call to loadClassProfile().
+  const deleteClassBtn = document.getElementById("delete-class-btn");
+  deleteClassBtn.addEventListener("click", deleteClass);
+  if (cachedTeacherId !== null) deleteClassBtn.classList.add("hidden");
+}
+
+// Hard delete, like fees/bookings — a class record has no reason to
+// linger once removed. The one real constraint is fees.class_id: any fee
+// still linked to this class blocks the delete at the database level
+// (foreign key violation, Postgres code 23503) rather than silently
+// orphaning that fee's class reference — caught specifically here so the
+// owner sees a clear next step instead of a raw Postgres error string.
+async function deleteClass() {
+  const cls = currentClass;
+  const confirmed = confirm(`Delete ${classDisplayName(cls)}? This cannot be undone.`);
+  if (!confirmed) return;
+
+  try {
+    await supabaseTable(`classes?id=eq.${cls.id}`, {
+      method: "DELETE",
+      prefer: "return=minimal",
+    });
+    window.location.href = "/admin/dashboard.html?tab=classes";
+  } catch (err) {
+    let isFeeConstraint = false;
+    try {
+      isFeeConstraint = JSON.parse(err.message).code === "23503";
+    } catch {
+      // err.message wasn't JSON — fall through to the generic alert below.
+    }
+
+    if (isFeeConstraint) {
+      alert("This class has fees linked to it — remove or reassign those fees before deleting the class.");
+    } else {
+      alert(`Failed to delete class: ${err.message}`);
+    }
+  }
 }
 
 function renderRoster() {
@@ -1219,7 +1570,7 @@ function renderRoster() {
     .map(
       (e) => `
       <tr data-enrollment-id="${e.id}">
-        <td><a href="/admin/student.html?id=${e.students.id}">${escapeHtml(e.students.full_name)}</a></td>
+        <td><a class="name-link" href="/admin/student.html?id=${e.students.id}">${escapeHtml(e.students.full_name)}</a></td>
         <td>${escapeHtml(e.students.year_level)}</td>
         <td>${escapeHtml(formatDate(e.enrolled_at))}</td>
         <td><span class="badge ${e.status}">${escapeHtml(titleCase(e.status))}</span></td>
@@ -1249,7 +1600,7 @@ function renderTeacherRoster() {
     .map(
       (a) => `
       <tr data-assignment-id="${a.id}">
-        <td><a href="/admin/teacher.html?id=${a.teachers.id}">${escapeHtml(a.teachers.full_name)}</a></td>
+        <td><a class="name-link" href="/admin/teacher.html?id=${a.teachers.id}">${escapeHtml(a.teachers.full_name)}</a></td>
         <td>${escapeHtml(formatDate(a.assigned_at))}</td>
         <td><span class="badge ${a.status}">${escapeHtml(titleCase(a.status))}</span></td>
         <td>${a.status === "active" ? `<button class="secondary" data-action="remove-teacher">Remove</button>` : ""}</td>
@@ -1389,6 +1740,43 @@ async function showAssignTeacherModal() {
   } catch (err) {
     listEl.innerHTML = `<li class="document-list-empty">Failed to load teachers: ${escapeHtml(err.message)}</li>`;
   }
+}
+
+// Hides what a teacher session on class.html can't use: the Teachers
+// section (a teacher's own class_teachers select policy only returns
+// their own assignment row, never their co-teachers' — rendering that
+// section for a teacher would show an incomplete, misleading list rather
+// than the real roster of who teaches this class, so it's hidden
+// entirely instead of rendered partially) and the "Assign Teacher"
+// action (no insert/update policy exists for teachers on class_teachers,
+// so it would only ever fail).
+function applyTeacherClassPageRestrictions() {
+  document.getElementById("class-teachers-section")?.classList.add("hidden");
+  document.getElementById("add-student-to-class-btn")?.classList.remove("hidden");
+}
+
+// A teacher has no Students tab (dashboard.html hides it entirely) and so
+// no other way to create a brand new student — this reuses the same
+// Add/Edit Student form as the dashboard's "Add Student", then
+// immediately enrolls the newly created student in this class via the
+// same reactivation-safe assignEntityToClass() every other enroll flow
+// uses, rather than duplicating that logic.
+async function showAddStudentToClassModal() {
+  showStudentFormModal(null, async (student) => {
+    const status = document.createElement("p"); // headless status sink — assignEntityToClass() only needs .textContent/.className setters, not a visible element
+    await assignEntityToClass(currentClass, "student", student.id, status, () => loadClassProfile(currentClass.id));
+    // assignEntityToClass() sets status.textContent to "Saving..." before
+    // attempting the enrollment and never clears it on success — only a
+    // failure adds the "error" class, so that's the actual signal to
+    // check, not textContent truthiness (which is also true on success
+    // and would incorrectly pop a "Saving..." alert after every
+    // successful enrollment).
+    if (status.className.includes("error")) {
+      // The student record itself already saved successfully by this
+      // point — only the enrollment step failed.
+      alert(status.textContent);
+    }
+  });
 }
 
 // Generalization of the reactivation-safe join-table pattern, shared by
@@ -1750,6 +2138,7 @@ async function loadBookings() {
             ${b.status !== "converted" ? `<button data-action="convert">Convert to student</button>` : ""}
             ${b.status !== "declined" && b.status !== "converted" ? `<button class="secondary" data-action="decline">Decline</button>` : ""}
             ${b.status === "converted" && b.student_id ? `<button class="secondary" data-action="view-student">View Student</button>` : ""}
+            <button class="secondary" data-action="delete">Delete</button>
           </div>
         </td>
       </tr>`
@@ -1775,6 +2164,26 @@ async function handleBookingAction(btn, bookings) {
     return;
   }
 
+  // Hard delete, same as fees — a trial booking with no lasting value
+  // once removed has no reason to linger in a disabled/declined state.
+  if (action === "delete") {
+    const confirmed = confirm(`Delete the trial booking for ${booking.child_name}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    btn.disabled = true;
+    try {
+      await supabaseTable(`trial_bookings?id=eq.${id}`, {
+        method: "DELETE",
+        prefer: "return=minimal",
+      });
+      await loadBookings();
+    } catch (err) {
+      alert(`Failed to delete booking: ${err.message}`);
+      btn.disabled = false;
+    }
+    return;
+  }
+
   btn.disabled = true;
   try {
     if (action === "contacted") {
@@ -1790,10 +2199,21 @@ async function handleBookingAction(btn, bookings) {
         body: JSON.stringify({ status: "declined" }),
       });
     } else if (action === "convert") {
-      const [newStudent] = await supabaseTable("students", {
+      // The id is generated here rather than read back from the insert
+      // (return=representation) — a teacher session's SELECT policy on
+      // students only allows viewing a student already enrolled in one
+      // of their classes, which a brand-new row isn't yet at the instant
+      // of creation, so Postgres blocks the read-back and reports it as
+      // a policy violation on the whole insert. Owner sessions aren't
+      // restricted this way, but generating the id client-side sidesteps
+      // the read-back requirement entirely rather than depending on
+      // which kind of session happens to be doing the inserting.
+      const newStudentId = crypto.randomUUID();
+      await supabaseTable("students", {
         method: "POST",
-        prefer: "return=representation",
+        prefer: "return=minimal",
         body: JSON.stringify({
+          id: newStudentId,
           full_name: booking.child_name,
           year_level: booking.year_level,
           parent_name: booking.parent_name,
@@ -1805,7 +2225,7 @@ async function handleBookingAction(btn, bookings) {
       await supabaseTable(`trial_bookings?id=eq.${id}`, {
         method: "PATCH",
         prefer: "return=minimal",
-        body: JSON.stringify({ status: "converted", student_id: newStudent.id }),
+        body: JSON.stringify({ status: "converted", student_id: newStudentId }),
       });
       await loadStudents();
     }
@@ -1887,7 +2307,7 @@ function renderStudents() {
       const unpaid = s.fees.filter((f) => f.paid_status === "unpaid").length;
       return `
     <tr data-id="${s.id}">
-      <td><a href="/admin/student.html?id=${s.id}">${escapeHtml(s.full_name)}</a></td>
+      <td><a class="name-link" href="/admin/student.html?id=${s.id}">${escapeHtml(s.full_name)}</a></td>
       <td>${escapeHtml(s.year_level)}</td>
       <td>${escapeHtml(s.parent_name)}<br/><small>${escapeHtml(s.parent_phone || "")} ${escapeHtml(s.parent_email || "")}</small></td>
       <td><span class="badge ${s.status}">${escapeHtml(titleCase(s.status))}</span> ${unpaid > 0 ? `<span class="badge unpaid">${unpaid} unpaid fee${unpaid > 1 ? "s" : ""}</span>` : ""}</td>
@@ -2201,15 +2621,32 @@ function showStudentFormModal(student, onSaved) {
           prefer: "return=minimal",
           body: JSON.stringify(payload),
         });
+        closeModal();
+        await onSaved();
       } else {
+        // The id is generated here, client-side, rather than read back
+        // from the insert via return=representation — a teacher
+        // session's SELECT policy on students only allows viewing a
+        // student already enrolled in one of their classes, which a
+        // brand-new row isn't yet at the instant of creation, so
+        // Postgres blocks the read-back and reports it as a policy
+        // violation on the whole insert (this is exactly how
+        // class.html's teacher-only Add Student flow used to fail).
+        // Generating the id up front sidesteps that read-back
+        // requirement entirely, for owner and teacher sessions alike —
+        // onSaved() callers that need the new row (e.g. class.html's Add
+        // Student, to immediately enroll it) get it directly; callers
+        // that don't (e.g. the dashboard's plain "Add Student") just
+        // ignore the argument.
+        const created = { id: crypto.randomUUID(), ...payload };
         await supabaseTable("students", {
           method: "POST",
           prefer: "return=minimal",
-          body: JSON.stringify(payload),
+          body: JSON.stringify(created),
         });
+        closeModal();
+        await onSaved(created);
       }
-      closeModal();
-      await onSaved();
     } catch (err) {
       status.textContent = `Failed to save student: ${err.message}`;
       status.className = "status-msg error";
@@ -2266,7 +2703,7 @@ function renderTeachers() {
     .map(
       (t) => `
     <tr data-id="${t.id}">
-      <td><a href="/admin/teacher.html?id=${t.id}">${escapeHtml(t.full_name)}</a></td>
+      <td><a class="name-link" href="/admin/teacher.html?id=${t.id}">${escapeHtml(t.full_name)}</a></td>
       <td>${escapeHtml(t.phone || "-")}<br/><small>${escapeHtml(t.email || "")}</small></td>
       <td><span class="badge ${t.status}">${escapeHtml(titleCase(t.status))}</span></td>
     </tr>`
@@ -2663,6 +3100,7 @@ async function initTeacherPage() {
   const teacherId = new URLSearchParams(window.location.search).get("id");
   if (!teacherId) {
     document.getElementById("teacher-profile-header").innerHTML = `<p class="error">No teacher specified.</p>`;
+    revealPage();
     return;
   }
 
@@ -2671,6 +3109,24 @@ async function initTeacherPage() {
   });
 
   document.getElementById("document-input").addEventListener("change", (e) => handleDocumentUpload(e, "teacher"));
+  document.getElementById("delete-teacher-btn").addEventListener("click", () => showDeleteEntityModal("teacher"));
+  document.getElementById("login-access-toggle-btn").addEventListener("click", toggleTeacherLoginAccess);
+
+  // Owner-only — RLS has no delete policy for teachers on the teachers
+  // table at all (confirmed in schema.sql), so this button is hidden as
+  // defense-in-depth for the UI, not as the actual security boundary. A
+  // teacher session could in principle land on their own teacher.html
+  // (RLS permits viewing/editing their own record), so this check exists
+  // here too, not just on the dashboard/class page. Login Access is
+  // hidden-by-default in the HTML and only revealed for the owner,
+  // rather than shown-then-hidden like Delete — see the markup comment.
+  if (await isTeacherSession()) {
+    document.getElementById("delete-teacher-btn")?.classList.add("hidden");
+  } else {
+    document.getElementById("login-access-section")?.classList.remove("hidden");
+  }
+  await applyTeacherSessionBanner();
+  revealPage();
 
   await loadTeacherProfile(teacherId);
 }
@@ -2692,6 +3148,7 @@ async function loadTeacherProfile(teacherId) {
     document.title = `${teacher.full_name} — ${window.CENTRE_CONFIG.centreName}`;
 
     renderTeacherProfileHeader();
+    renderLoginAccessSection();
     renderTeacherClassesSection();
     renderDocumentList("teacher");
     await refreshProfilePhotoAvatar("profile-photo-avatar", "teacher");
@@ -2719,6 +3176,53 @@ function renderTeacherProfileHeader() {
   const bioEl = document.getElementById("teacher-bio");
   bioEl.textContent = teacher.bio || "";
   bioEl.classList.toggle("hidden", !teacher.bio);
+}
+
+// Reflects teachers.login_enabled — reuses the same .badge/active/inactive
+// vocabulary already used everywhere else in this file rather than
+// introducing a separate visual language just for this one toggle.
+function renderLoginAccessSection() {
+  const teacher = currentTeacher;
+  const badge = document.getElementById("login-access-badge");
+  const toggleBtn = document.getElementById("login-access-toggle-btn");
+
+  badge.textContent = teacher.login_enabled ? "Enabled" : "Disabled";
+  badge.className = `badge ${teacher.login_enabled ? "active" : "inactive"}`;
+  toggleBtn.textContent = teacher.login_enabled ? "Disable Login" : "Enable Login";
+}
+
+// Calls api/manage-teacher-login.js, which re-verifies (server-side) that
+// the caller is actually the owner before doing anything — this
+// client-side gating is just about not showing/offering the option to a
+// teacher session, not the real boundary.
+async function toggleTeacherLoginAccess() {
+  const teacher = currentTeacher;
+  const enabling = !teacher.login_enabled;
+  const confirmMessage = enabling
+    ? `Enable login access for ${teacher.full_name}?${
+        teacher.auth_user_id ? "" : " They'll be emailed a one-time link to set their password."
+      }`
+    : `Disable login access for ${teacher.full_name}? They won't be able to log in until you re-enable it.`;
+  if (!confirm(confirmMessage)) return;
+
+  const toggleBtn = document.getElementById("login-access-toggle-btn");
+  toggleBtn.disabled = true;
+
+  try {
+    const session = getSession();
+    const res = await fetch("/api/manage-teacher-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ teacher_id: teacher.id, enable: enabling }),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || "Failed to update login access");
+
+    await loadTeacherProfile(teacher.id);
+  } catch (err) {
+    alert(`Failed to update login access: ${err.message}`);
+    toggleBtn.disabled = false;
+  }
 }
 
 // Mirrors student.html's renderStudentClassesSection() — which classes
@@ -2759,6 +3263,19 @@ const PROFILE_ENTITY_CONFIGS = {
     storagePrefix: "students",
     getCurrent: () => currentStudent,
     reload: (id) => loadStudentProfile(id),
+    // Every one of these tables has an `on delete cascade` FK back to
+    // students (see schema.sql) — deleting the student row alone already
+    // destroys all of them at the database level. This list exists only
+    // to show the owner what that cascade is about to take with it.
+    // cleanupStorage: true means it also has a file to remove from the
+    // student-files bucket, which the cascade does NOT do — the DB row
+    // disappears but the object would otherwise be orphaned.
+    deleteImpact: [
+      { table: "fees", fkColumn: "student_id", label: "fee" },
+      { table: "attendance_records", fkColumn: "student_id", label: "attendance record" },
+      { table: "student_documents", fkColumn: "student_id", label: "document", cleanupStorage: true },
+    ],
+    afterDeleteRedirect: "/admin/dashboard.html?tab=students",
   },
   teacher: {
     table: "teachers",
@@ -2767,6 +3284,11 @@ const PROFILE_ENTITY_CONFIGS = {
     storagePrefix: "teachers",
     getCurrent: () => currentTeacher,
     reload: (id) => loadTeacherProfile(id),
+    deleteImpact: [
+      { table: "class_teachers", fkColumn: "teacher_id", label: "class assignment" },
+      { table: "teacher_documents", fkColumn: "teacher_id", label: "document", cleanupStorage: true },
+    ],
+    afterDeleteRedirect: "/admin/dashboard.html?tab=teachers",
   },
 };
 
@@ -2935,6 +3457,106 @@ async function deleteDocument(documentId, entityType) {
   } catch (err) {
     alert(`Failed to delete document: ${err.message}`);
   }
+}
+
+// "a, b, and c" / "a and b" / "a" — matches the exact wording style used
+// throughout this file's confirm()/alert() messages.
+function joinWithAnd(parts) {
+  if (parts.length <= 1) return parts.join("");
+  if (parts.length === 2) return parts.join(" and ");
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
+// Owner-only (see applyTeacherStudentPageRestrictions/
+// applyTeacherTeacherPageRestrictions — the button that calls this is
+// hidden for a teacher session, and RLS has no delete policy for teachers
+// on students or teachers at all, so this would be rejected outright even
+// if somehow triggered). Shared by student.html and teacher.html via the
+// same entityType generalization as photo/document uploads, rather than
+// two near-identical implementations.
+//
+// Every dependent table listed in deleteImpact already cascades on
+// delete at the database level (see schema.sql) — the counts fetched
+// here exist purely to show the owner what that single DELETE is about
+// to take with it before they commit to it.
+async function showDeleteEntityModal(entityType) {
+  const entityCfg = PROFILE_ENTITY_CONFIGS[entityType];
+  const entity = entityCfg.getCurrent();
+  const name = entity.full_name;
+
+  const modalBody = openModal(`
+    <h3>Delete ${escapeHtml(name)}</h3>
+    <p id="delete-entity-impact" class="text-muted">Checking what will be deleted...</p>
+    <label>
+      Type "${escapeHtml(name)}" to confirm
+      <input type="text" id="delete-entity-confirm-input" autocomplete="off" />
+    </label>
+    <p id="delete-entity-status" class="status-msg"></p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="delete-entity-cancel">Cancel</button>
+      <button type="button" id="delete-entity-confirm-btn" disabled>Delete</button>
+    </div>
+  `);
+
+  modalBody.querySelector("#delete-entity-cancel").addEventListener("click", closeModal);
+
+  const impactEl = modalBody.querySelector("#delete-entity-impact");
+  const input = modalBody.querySelector("#delete-entity-confirm-input");
+  const confirmBtn = modalBody.querySelector("#delete-entity-confirm-btn");
+  const status = modalBody.querySelector("#delete-entity-status");
+
+  let relatedRows = [];
+  try {
+    relatedRows = await Promise.all(
+      entityCfg.deleteImpact.map((rel) =>
+        supabaseTable(`${rel.table}?select=id${rel.cleanupStorage ? ",file_url" : ""}&${rel.fkColumn}=eq.${entity.id}`)
+      )
+    );
+    const parts = entityCfg.deleteImpact.map((rel, i) => {
+      const count = relatedRows[i].length;
+      return `${count} ${rel.label}${count === 1 ? "" : "s"}`;
+    });
+    impactEl.textContent = `Deleting ${name} will also permanently delete ${joinWithAnd(parts)}. This cannot be undone.`;
+  } catch (err) {
+    impactEl.textContent = `Failed to check what will be deleted: ${err.message}`;
+    impactEl.className = "text-muted error";
+  }
+
+  input.addEventListener("input", () => {
+    confirmBtn.disabled = input.value !== name;
+  });
+
+  confirmBtn.addEventListener("click", async () => {
+    confirmBtn.disabled = true;
+    status.textContent = "Deleting...";
+    status.className = "status-msg";
+
+    try {
+      await supabaseTable(`${entityCfg.table}?id=eq.${entity.id}`, {
+        method: "DELETE",
+        prefer: "return=minimal",
+      });
+
+      // Best-effort storage cleanup — the cascade above already removed
+      // every DB row, but not the actual files those rows pointed to.
+      // Deliberately not awaited-and-blocking on failure: the primary
+      // delete already succeeded, so a storage cleanup miss here just
+      // means an orphaned file, not a stuck/incomplete delete.
+      const filesToClean = [
+        entity.profile_photo_url,
+        ...entityCfg.deleteImpact
+          .flatMap((rel, i) => (rel.cleanupStorage ? relatedRows[i] : []))
+          .map((row) => row.file_url),
+      ].filter(Boolean);
+      await Promise.all(filesToClean.map((path) => storageDelete(path).catch(() => {})));
+
+      window.location.href = entityCfg.afterDeleteRedirect;
+    } catch (err) {
+      status.textContent = `Failed to delete: ${err.message}`;
+      status.className = "status-msg error";
+      confirmBtn.disabled = false;
+    }
+  });
 }
 
 async function handleDocumentUpload(e, entityType) {
